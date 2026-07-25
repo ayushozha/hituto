@@ -1,6 +1,7 @@
 import { PricingTable } from "@clerk/react";
 
 import { Mascot } from "../../components/Mascot";
+import { AUTH_DISABLED } from "../../context/AuthContext";
 import { MarketingFooter, MarketingHeader } from "./MarketingChrome";
 
 const individualAllowances = [
@@ -106,26 +107,37 @@ export function PricingPage() {
           <h2 id="plans-heading" className="sr-only">
             Subscription plans
           </h2>
-          <div className="flex justify-center [&_.cl-rootBox]:w-full [&_.cl-pricingTable]:w-full">
-            <PricingTable
-              for="user"
-              newSubscriptionRedirectUrl="/#dashboard"
-              appearance={{
-                elements: {
-                  rootBox: "w-full max-w-6xl",
-                  pricingTable: "gap-5",
-                  pricingTableCard: "rounded-3xl border border-ink/5 bg-white shadow-chip",
-                  pricingTableCardHeader: "p-7 sm:p-8",
-                  pricingTableCardTitle: "font-archivo text-2xl font-semibold tracking-[-0.02em]",
-                  pricingTableCardFee: "font-archivo text-5xl font-semibold tracking-[-0.03em]",
-                  pricingTableCardFeatures: "px-7 pb-4 sm:px-8",
-                  pricingTableCardFeaturesListItemTitle: "text-sm font-medium",
-                  pricingTableCardFooter: "p-7 pt-4 sm:p-8",
-                  buttonPrimary: "min-h-12 rounded-full bg-ink text-sm font-semibold text-white hover:bg-ink/80",
-                },
-              }}
-            />
-          </div>
+          {AUTH_DISABLED ? (
+            <div className="rounded-3xl border border-ink/5 bg-white p-8 text-center shadow-chip">
+              <p className="font-archivo text-xl font-semibold tracking-[-0.02em]">
+                Pricing is unavailable in local demo mode.
+              </p>
+              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-ink-soft">
+                Enable Clerk authentication with a publishable key to load live subscription plans.
+              </p>
+            </div>
+          ) : (
+            <div className="flex justify-center [&_.cl-rootBox]:w-full [&_.cl-pricingTable]:w-full">
+              <PricingTable
+                for="user"
+                newSubscriptionRedirectUrl="/#dashboard"
+                appearance={{
+                  elements: {
+                    rootBox: "w-full max-w-6xl",
+                    pricingTable: "gap-5",
+                    pricingTableCard: "rounded-3xl border border-ink/5 bg-white shadow-chip",
+                    pricingTableCardHeader: "p-7 sm:p-8",
+                    pricingTableCardTitle: "font-archivo text-2xl font-semibold tracking-[-0.02em]",
+                    pricingTableCardFee: "font-archivo text-5xl font-semibold tracking-[-0.03em]",
+                    pricingTableCardFeatures: "px-7 pb-4 sm:px-8",
+                    pricingTableCardFeaturesListItemTitle: "text-sm font-medium",
+                    pricingTableCardFooter: "p-7 pt-4 sm:p-8",
+                    buttonPrimary: "min-h-12 rounded-full bg-ink text-sm font-semibold text-white hover:bg-ink/80",
+                  },
+                }}
+              />
+            </div>
+          )}
 
           <section className="mt-16 lg:mt-20" aria-labelledby="allowances-heading">
             <div className="grid gap-6 lg:grid-cols-[1fr_0.72fr] lg:items-end">

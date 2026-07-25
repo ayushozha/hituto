@@ -1,16 +1,18 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Proxy API + tool-server routes to the backend so the dashboard and the
 // artifact iframe (which uses relative /gen, /image, ...) work same-origin in dev.
 // Auth-disabled e2e API (AUTH_DISABLED=1). Use IPv4 loopback — uvicorn binds 127.0.0.1,
 // and `localhost` can resolve to ::1 first and break the Vite proxy.
-const backend = "http://127.0.0.1:8077";
-
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    port: 5173,
+export default defineConfig(({ mode }) => {
+  const backend =
+    loadEnv(mode, process.cwd(), "VITE_").VITE_BACKEND_PROXY_TARGET ||
+    "http://127.0.0.1:8077";
+  return {
+    plugins: [react()],
+    server: {
+      port: 5173,
     // Cloudflare quick tunnels (*.trycloudflare.com) hit Vite with a foreign Host header.
     allowedHosts: [".trycloudflare.com"],
     proxy: {
@@ -20,6 +22,8 @@ export default defineConfig({
       "/insights": { target: backend, changeOrigin: true },
       "/profile": { target: backend, changeOrigin: true },
       "/billing": { target: backend, changeOrigin: true },
+      "/reports": { target: backend, changeOrigin: true },
+      "/report-invitations": { target: backend, changeOrigin: true },
       "/gen": backend,
       "/image": backend,
       "/audio": backend,
@@ -27,5 +31,6 @@ export default defineConfig({
       "/maps": backend,
       "/health": backend,
     },
-  },
+    },
+  };
 });

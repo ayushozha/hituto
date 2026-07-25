@@ -152,6 +152,282 @@ async function authHeaders(extra: HeadersInit = {}): Promise<HeadersInit> {
   };
 }
 
+// Parent-custodied progress reports
+
+export type ReportEvidenceItem = {
+  statement: string;
+  evidence: string;
+};
+
+export type ReportContent = {
+  learning_goals: string[];
+  work_completed: string[];
+  strengths: ReportEvidenceItem[];
+  support_areas: ReportEvidenceItem[];
+  teacher_observations: string;
+  next_actions: string[];
+};
+
+export type ReportLearner = {
+  id: string;
+  display_alias: string;
+  grade_band: string | null;
+};
+
+export type ReportPermissions = {
+  can_edit: boolean;
+  can_publish: boolean;
+  can_invite: boolean;
+  can_correct: boolean;
+  can_acknowledge: boolean;
+  can_print: boolean;
+  can_manage_grants: boolean;
+};
+
+export type ProgressReport = {
+  id: string;
+  series_id: string;
+  learner: ReportLearner;
+  author_display_name: string;
+  author_account_ref: string;
+  version: number;
+  supersedes_id: string | null;
+  status: "draft" | "published";
+  reporting_period_start: string | null;
+  reporting_period_end: string | null;
+  schema_version: 1;
+  evidence_mode: "teacher_entered";
+  content: ReportContent;
+  published_at: string | null;
+  created_at: string;
+  updated_at: string;
+  acknowledged_at: string | null;
+  permissions: ReportPermissions;
+};
+
+export type ReportInvitation = {
+  id: string;
+  token: string;
+  expires_at: string;
+};
+
+export type ReportDraftFields = {
+  author_display_name: string;
+  reporting_period_start: string | null;
+  reporting_period_end: string | null;
+  content: ReportContent;
+};
+
+export type CreateProgressReportInput = ReportDraftFields &
+  (
+    | { learner_id: string; learner?: never }
+    | { learner_id?: never; learner: { display_alias: string; grade_band: string | null } }
+  );
+
+export type ReportAuditEvent = {
+  id: string;
+  event_type: string;
+  created_at: string;
+};
+
+export type ReportHistory = {
+  reports: ProgressReport[];
+  events: ReportAuditEvent[];
+};
+
+export type LearnerAccessGrant = {
+  id: string;
+  principal_user_id: string;
+  capability: string;
+  accepted_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
+};
+
+async function reportApiError(response: Response, fallback: string): Promise<Error> {
+  const detail = (await response.json().catch(() => ({}))).detail;
+  if (typeof detail === "string") return new Error(detail);
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (!item || typeof item !== "object") return null;
+        const location = Array.isArray(item.loc)
+          ? item.loc.filter((part: unknown) => part !== "body").join(".")
+          : "";
+        const message = typeof item.msg === "string" ? item.msg : "";
+        return message ? `${location ? `${location}: ` : ""}${message}` : null;
+      })
+      .filter((message): message is string => Boolean(message));
+    if (messages.length > 0) return new Error(messages.join("; "));
+  }
+  return new Error(fallback);
+}
+
+export async function listProgressReports(
+  scope: "authored" | "family",
+): Promise<ProgressReport[]> {
+  const qs = new URLSearchParams({ scope });
+  const response = await fetch(apiUrl(`/reports?${qs}`), { headers: await authHeaders() });
+  if (!response.ok) throw await reportApiError(response, "failed to load reports");
+  return response.json();
+}
+
+export async function listReportLearners(
+  scope: "authoring" | "custody" = "authoring",
+): Promise<ReportLearner[]> {
+  const qs = new URLSearchParams({ scope });
+  const response = await fetch(apiUrl(`/reports/learners?${qs}`), {
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to load learners");
+  return response.json();
+}
+
+export async function createProgressReport(
+  input: CreateProgressReportInput,
+): Promise<ProgressReport> {
+  const response = await fetch(apiUrl("/reports"), {
+    method: "POST",
+    headers: await authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to create report");
+  return response.json();
+}
+
+export async function getProgressReport(id: string): Promise<ProgressReport> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}`), {
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to load report");
+  return response.json();
+}
+
+export async function updateProgressReport(
+  id: string,
+  input: ReportDraftFields,
+): Promise<ProgressReport> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}`), {
+    method: "PATCH",
+    headers: await authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to save report");
+  return response.json();
+}
+
+export async function publishProgressReport(
+  id: string,
+): Promise<{ report: ProgressReport; invitation: ReportInvitation | null }> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/publish`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to publish report");
+  return response.json();
+}
+
+export async function createReportCorrection(id: string): Promise<ProgressReport> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/corrections`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to create correction");
+  return response.json();
+}
+
+export async function createReportInvitation(id: string): Promise<ReportInvitation> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/invitations`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to create invitation");
+  return response.json();
+}
+
+export async function revokeReportInvitations(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/invitations`), {
+    method: "DELETE",
+    headers: await authHeaders(),
+  });
+  if (!response.ok) {
+    throw await reportApiError(response, "failed to revoke invitations");
+  }
+}
+
+export async function claimReportInvitation(
+  token: string,
+  targetLearnerId: string | null = null,
+): Promise<ProgressReport> {
+  const response = await fetch(apiUrl("/report-invitations/claim"), {
+    method: "POST",
+    headers: await authHeaders({ "content-type": "application/json" }),
+    body: JSON.stringify({ token, target_learner_id: targetLearnerId }),
+  });
+  if (!response.ok) {
+    throw await reportApiError(
+      response,
+      "This invitation is unavailable. It may be expired, revoked, or already claimed.",
+    );
+  }
+  return response.json();
+}
+
+export async function acknowledgeProgressReport(
+  id: string,
+): Promise<{ acknowledged_at: string }> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/acknowledge`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to acknowledge report");
+  return response.json();
+}
+
+export async function recordProgressReportPrint(id: string): Promise<void> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/print`), {
+    method: "POST",
+    headers: await authHeaders(),
+  });
+  if (!response.ok && response.status !== 204) {
+    throw await reportApiError(response, "failed to record print");
+  }
+}
+
+export async function getProgressReportHistory(id: string): Promise<ReportHistory> {
+  const response = await fetch(apiUrl(`/reports/${encodeURIComponent(id)}/history`), {
+    headers: await authHeaders(),
+  });
+  if (!response.ok) throw await reportApiError(response, "failed to load report history");
+  return response.json();
+}
+
+export async function getReportLearnerGrants(
+  learnerId: string,
+): Promise<LearnerAccessGrant[]> {
+  const response = await fetch(
+    apiUrl(`/reports/learners/${encodeURIComponent(learnerId)}/grants`),
+    { headers: await authHeaders() },
+  );
+  if (!response.ok) throw await reportApiError(response, "failed to load report access");
+  return response.json();
+}
+
+export async function revokeReportLearnerGrant(
+  learnerId: string,
+  grantId: string,
+): Promise<void> {
+  const response = await fetch(
+    apiUrl(
+      `/reports/learners/${encodeURIComponent(learnerId)}/grants/${encodeURIComponent(grantId)}`,
+    ),
+    { method: "DELETE", headers: await authHeaders() },
+  );
+  if (!response.ok && response.status !== 204) {
+    throw await reportApiError(response, "failed to revoke report access");
+  }
+}
+
 // Billing API
 
 export type Allowance = {

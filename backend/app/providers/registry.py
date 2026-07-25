@@ -4,8 +4,6 @@ Production requires live credentials. Tests patch these getters with fakes (see 
 """
 from __future__ import annotations
 
-import os
-
 from ..core.config import Settings, get_settings
 from .embeddings import OpenAICompatEmbedding
 from .llm import OpenAICompatLLM
@@ -21,9 +19,9 @@ def _require(value: str, name: str) -> None:
 
 def validate_provider_config(settings: Settings | None = None) -> None:
     """Fail fast at startup when required provider credentials are missing."""
-    if os.environ.get("SKIP_PROVIDER_VALIDATION"):
-        return
     s = settings or get_settings()
+    if s.skip_provider_validation:
+        return
     errors: list[str] = []
 
     if not s.llm_api_key.strip():

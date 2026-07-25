@@ -8,7 +8,19 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from . import agentbridge, billing, courses, insights, profile, shared, sources, tools, tutor, voice
+from . import (
+    agentbridge,
+    billing,
+    courses,
+    insights,
+    profile,
+    reports,
+    shared,
+    sources,
+    tools,
+    tutor,
+    voice,
+)
 
 api_router = APIRouter()
 api_router.include_router(billing.router)
@@ -21,3 +33,4 @@ api_router.include_router(voice.router)
 api_router.include_router(agentbridge.router)
 api_router.include_router(insights.router)
 api_router.include_router(profile.router)
+api_router.include_router(reports.router)

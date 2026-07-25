@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { CourseCard, CourseDetail, Lesson, Progress, deleteCourse, getCourse, getProfile, listCourses, subscribeProgress, updateCourse } from "./api";
-import { useAuth } from "./context/AuthContext";
+import { AUTH_DISABLED, useAuth } from "./context/AuthContext";
 import { Dashboard, StatusFilter } from "./features/courses/Dashboard";
 import { CreateCourseModal } from "./features/courses/CreateCourseModal";
 import { OnboardingPage } from "./features/onboarding/OnboardingPage";
@@ -10,13 +10,22 @@ import { AuthPage } from "./features/auth/AuthPage";
 import { PricingPage } from "./features/marketing/PricingPage";
 import { WaitlistPage } from "./features/marketing/WaitlistPage";
 import { BillingPage } from "./features/billing/BillingPage";
+import { ReportInviteClaim } from "./features/reports/ReportInviteClaim";
+import { ReportsHome } from "./features/reports/ReportsHome";
+import { ReportWorkspace } from "./features/reports/ReportWorkspace";
 import { Roadmap } from "./features/roadmap/Roadmap";
 import { Viewer } from "./features/lesson/Viewer";
 import { SharedLessonView } from "./features/lesson/SharedLessonView";
-import { AppRoute, consumeReturnHash, hashFor, isDashboardRoute, parseHash, saveReturnHash } from "./routing";
-
-/** Local demo: allow marketing landing even with the synthetic "dev" user. */
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === "1";
+import {
+  AppRoute,
+  allowHashNavigation,
+  consumeReturnHash,
+  hashFor,
+  isAuthRequiredRoute,
+  isDashboardRoute,
+  parseHash,
+  saveReturnHash,
+} from "./routing";
 
 export default function App() {
   const { user, loading: authLoading } = useAuth();
@@ -45,7 +54,13 @@ export default function App() {
   const [profileGate, setProfileGate] = useState<{ user: string; onboarded: boolean } | null>(null);
 
   useEffect(() => {
-    const sync = () => setRoute(parseHash(window.location.hash));
+    const sync = (event: HashChangeEvent) => {
+      if (!allowHashNavigation()) {
+        window.history.replaceState(null, "", event.oldURL);
+        return;
+      }
+      setRoute(parseHash(window.location.hash));
+    };
     window.addEventListener("hashchange", sync);
     return () => window.removeEventListener("hashchange", sync);
   }, []);
@@ -54,6 +69,10 @@ export default function App() {
     if (authLoading) return;
     if (route.kind === "auth" && user) {
       const next = consumeReturnHash();
+      if (parseHash(next).kind === "reportInvite") {
+        window.location.replace(next);
+        return;
+      }
       if (window.location.hash === next) {
         setRoute(parseHash(next));
       } else {
@@ -72,9 +91,13 @@ export default function App() {
       }
       return;
     }
-    if (isDashboardRoute(route) && !user) {
+    if (isAuthRequiredRoute(route) && !user) {
       saveReturnHash(window.location.hash);
       const authHash = hashFor({ kind: "auth", mode: "login" });
+      if (route.kind === "reportInvite") {
+        window.location.replace(authHash);
+        return;
+      }
       // Setting the same hash does not fire hashchange — sync route explicitly.
       if (window.location.hash === authHash) {
         setRoute({ kind: "auth", mode: "login" });
@@ -252,7 +275,7 @@ export default function App() {
   }
 
   // Public share link: read-only, rendered regardless of auth state and before
-  // any auth gate (isDashboardRoute is false for it, so the redirect effect skips it).
+  // any auth gate (isAuthRequiredRoute is false for it, so the redirect effect skips it).
   if (route.kind === "shared") {
     return (
       <div className="h-screen">
@@ -261,7 +284,7 @@ export default function App() {
     );
   }
 
-  if (authLoading && isDashboardRoute(route)) {
+  if (authLoading && isAuthRequiredRoute(route)) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-bone text-ink-soft">
         Loading...
@@ -291,6 +314,16 @@ export default function App() {
     }
     return <BillingPage />;
   }
+
+  if (route.kind === "reports") return <ReportsHome />;
+
+  if (route.kind === "reportNew") return <ReportWorkspace key="new-report" />;
+
+  if (route.kind === "report") {
+    return <ReportWorkspace key={route.reportId} reportId={route.reportId} />;
+  }
+
+  if (route.kind === "reportInvite") return <ReportInviteClaim token={route.token} />;
 
   if (route.kind === "landing") {
     return (

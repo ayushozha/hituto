@@ -17,16 +17,17 @@ Hi Tuto is a generative learning platform that transforms any topic (or uploaded
 7. [Tutor Agent](#tutor-agent)
 8. [Voice Instructor](#voice-instructor)
 9. [Learning Observability & Insights](#learning-observability--insights)
-10. [RAG — Document Knowledge Layer](#rag--document-knowledge-layer)
-11. [Capsule Security System](#capsule-security-system)
-12. [A2UI — Declarative Widget System](#a2ui--declarative-widget-system)
-13. [Frontend Architecture](#frontend-architecture)
-14. [API Reference](#api-reference)
-15. [Authentication & Authorization](#authentication--authorization)
-16. [Deployment & Infrastructure](#deployment--infrastructure)
-17. [Quick Start](#quick-start)
-18. [Repository Layout](#repository-layout)
-19. [Environment Variables](#environment-variables)
+10. [Parent-Custodied Report Vault](#parent-custodied-report-vault)
+11. [RAG — Document Knowledge Layer](#rag--document-knowledge-layer)
+12. [Capsule Security System](#capsule-security-system)
+13. [A2UI — Declarative Widget System](#a2ui--declarative-widget-system)
+14. [Frontend Architecture](#frontend-architecture)
+15. [API Reference](#api-reference)
+16. [Authentication & Authorization](#authentication--authorization)
+17. [Deployment & Infrastructure](#deployment--infrastructure)
+18. [Quick Start](#quick-start)
+19. [Repository Layout](#repository-layout)
+20. [Environment Variables](#environment-variables)
 
 ---
 
@@ -725,6 +726,29 @@ The full requirements, evidence policy, formulas, UI states, and implementation 
 
 ---
 
+## Parent-Custodied Report Vault
+
+The report vault provides a private, learner-scoped handoff between an attributed report
+author and a parent or guardian. It is separate from a signed-in user's learner profile and
+from private Learning Insights.
+
+| Surface | Current behavior |
+|---------|------------------|
+| Capabilities | `custody:manage` manages learner grants, `report:create` controls draft/publish/correction, and `report:view` controls ongoing read access. |
+| Publication | Drafts are editable only by an authorized author. Published reports are immutable; corrections create a new version in the same series. |
+| Invitations | Seven-day, single-use, revocable opaque tokens are stored only as SHA-256 hashes. Raw tokens remain in the client URL fragment until the authenticated claim request. |
+| Custody | Claiming grants one active custodian `custody:manage` and `report:view`; the database enforces one active custodian per learner. |
+| Existing learner claim | A claimant may attach the complete report series to a learner they already manage. SQLite serializes that transition so a concurrent correction cannot split the series. |
+| Privacy | Report endpoints require Clerk authentication and return `Cache-Control: no-store, private`. The invite route reveals no report metadata before claim. |
+| Audit | Draft, publish, invitation, claim, view, correction, acknowledgement, print, and grant changes are recorded. |
+
+The MVP deliberately defers co-guardian custody, general learner-record merge, retention
+and deletion workflows, notification delivery, and any use of private learning-insight data
+as report evidence. Before production release, validate the author and parent flow with two
+separate Clerk accounts.
+
+---
+
 ## RAG — Document Knowledge Layer
 
 Turns an uploaded PDF/Markdown/text into structured, retrievable knowledge that grounds lessons and tutor answers with citations.
@@ -939,6 +963,10 @@ graph TD
 | `#` | `Landing` | Marketing page with waitlist signup |
 | `#auth` | `AuthPage` | Clerk sign-in / sign-up |
 | `#studio` | `Dashboard` | Compact resume hero, course search/filter grid, and private responsive learning insights |
+| `#reports` | `ReportsHome` | Authored reports and the parent-custodied family vault |
+| `#reports/new` | `ReportWorkspace` | Structured report editor and preview |
+| `#reports/{id}` | `ReportWorkspace` | Permission-driven report, history, acknowledgement, print, invitations, and grants |
+| `#report-invite/{token}` | `ReportInviteClaim` | Opaque authenticated invitation claim flow |
 | `#studio/course/{id}` | `Roadmap` | Chapter-grouped lesson list, outline review editor |
 | `#studio/course/{id}/lesson/{id}` | `Viewer` | Iframe + tutor + voice side-by-side |
 | `#s/{token}` | `SharedLessonView` | Public read-only shared lesson (no auth) |
@@ -1050,6 +1078,25 @@ All insight endpoints require authentication and scope reads/writes to the curre
 | `GET` | `/insights/preferences` | Read collection and optional question-content controls |
 | `PATCH` | `/insights/preferences` | Update one or both supported preference flags |
 | `DELETE` | `/insights/data` | Delete the current user’s events and snapshots without deleting courses |
+
+### Parent Report Vault Endpoints
+
+All report-vault endpoints require authentication, enforce learner-scoped capabilities, and
+return private `no-store` responses.
+
+| Method | Path | Behavior |
+|--------|------|----------|
+| `GET` | `/reports?scope=authored\|family` | List the latest accessible version of each report series |
+| `POST` | `/reports` | Create a draft for a new learner or an existing learner with `report:create` |
+| `GET` | `/reports/learners` | List authoring or custody learners |
+| `GET` / `DELETE` | `/reports/learners/{learner_id}/grants` | List or revoke a non-custody grant |
+| `GET` / `PATCH` | `/reports/{report_id}` | Read an authorized report or update a draft |
+| `POST` | `/reports/{report_id}/publish` | Publish an immutable version and optionally mint an invitation |
+| `POST` | `/reports/{report_id}/corrections` | Create the next draft version |
+| `POST` / `DELETE` | `/reports/{report_id}/invitations` | Replace or revoke active unclaimed invitations |
+| `POST` | `/report-invitations/claim` | Claim a token into a new or existing custodial learner |
+| `POST` | `/reports/{report_id}/acknowledge` or `/print` | Record acknowledgement or native-print audit event |
+| `GET` | `/reports/{report_id}/history` | Return visible versions and report-linked audit events |
 
 ### Media/Tool Endpoints
 

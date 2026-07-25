@@ -4,6 +4,7 @@ import { PricingTable, UserButton, useClerk } from "@clerk/react";
 import { Allowance, BillingUsage, fetchBillingUsage } from "../../api";
 import { BrandMark } from "../../components/BrandMark";
 import { Mascot } from "../../components/Mascot";
+import { AUTH_DISABLED } from "../../context/AuthContext";
 import { hashFor } from "../../routing";
 
 type MeterDef = {
@@ -46,7 +47,6 @@ const METERS: MeterDef[] = [
 ];
 
 export function BillingPage() {
-  const { openUserProfile } = useClerk();
   const [usage, setUsage] = useState<BillingUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -96,6 +96,11 @@ export function BillingPage() {
             >
               Back to courses
             </button>
+            {AUTH_DISABLED ? (
+              <span className="grid h-9 w-9 place-items-center rounded-full bg-ink text-xs font-semibold text-white">
+                D
+              </span>
+            ) : (
             <UserButton
               appearance={{
                 elements: {
@@ -104,6 +109,7 @@ export function BillingPage() {
                 },
               }}
             />
+            )}
           </div>
         </div>
       </header>
@@ -131,13 +137,13 @@ export function BillingPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2.5">
-              <button
-                type="button"
-                onClick={() => openUserProfile()}
-                className="inline-flex min-h-11 items-center rounded-full border border-ink/10 bg-white px-5 text-sm font-semibold text-ink transition hover:border-ink/20"
-              >
-                Manage billing
-              </button>
+              {AUTH_DISABLED ? (
+                <span className="inline-flex min-h-11 items-center rounded-full border border-ink/10 bg-sand px-5 text-sm text-ink-soft">
+                  Billing is unavailable in local demo mode
+                </span>
+              ) : (
+                <ManageBillingButton />
+              )}
               <a
                 href="#pricing"
                 className="inline-flex min-h-11 items-center rounded-full bg-ink px-5 text-sm font-semibold text-white transition hover:bg-ink/80"
@@ -193,6 +199,11 @@ export function BillingPage() {
               </div>
               <Mascot mood="celebrate" className="h-14 w-14" title="Hi Tuto celebrating an upgrade" />
             </div>
+            {AUTH_DISABLED ? (
+              <p className="rounded-2xl border border-ink/5 bg-white px-5 py-4 text-sm text-ink-soft shadow-chip">
+                Clerk pricing widgets are hidden while local authentication is disabled.
+              </p>
+            ) : (
             <div className="flex justify-center [&_.cl-rootBox]:w-full [&_.cl-pricingTable]:w-full">
               <PricingTable
                 for="user"
@@ -208,10 +219,24 @@ export function BillingPage() {
                 }}
               />
             </div>
+            )}
           </section>
         ) : null}
       </main>
     </div>
+  );
+}
+
+function ManageBillingButton() {
+  const { openUserProfile } = useClerk();
+  return (
+    <button
+      type="button"
+      onClick={() => openUserProfile()}
+      className="inline-flex min-h-11 items-center rounded-full border border-ink/10 bg-white px-5 text-sm font-semibold text-ink transition hover:border-ink/20"
+    >
+      Manage billing
+    </button>
   );
 }
 

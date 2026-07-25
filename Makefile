@@ -10,11 +10,12 @@ dev:
 
 test:
 	@echo "Running all tests..."
-	# TODO: implement running tests
+	$(MAKE) test-backend
+	cd frontend && npm run build
 
 test-backend:
 	@echo "Running backend tests..."
-	# TODO: implement backend tests (pytest)
+	cd backend && uv run --frozen pytest
 
 studio:
 	@echo "Starting langgraph studio..."

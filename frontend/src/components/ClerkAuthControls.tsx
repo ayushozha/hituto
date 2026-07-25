@@ -1,5 +1,6 @@
 import { Show, SignInButton, SignUpButton } from "@clerk/react";
 
+import { AUTH_DISABLED } from "../context/AuthContext";
 import { hashFor } from "../routing";
 
 const navLinkClass =
@@ -15,6 +16,21 @@ type ClerkAuthControlsProps = {
 
 /** Marketing chrome auth. Dashboard profile (UserButton + Learning style) lives on Dashboard. */
 export function ClerkAuthControls({ variant = "full" }: ClerkAuthControlsProps) {
+  if (AUTH_DISABLED) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          window.location.hash = hashFor({ kind: "dashboard" });
+        }}
+        className={variant === "signIn" ? navLinkClass : primaryClass}
+      >
+        Open local demo
+        {variant === "full" ? <span aria-hidden="true">{"\u2192"}</span> : null}
+      </button>
+    );
+  }
+
   return (
     <>
       <Show when="signed-out">

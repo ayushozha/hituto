@@ -1,7 +1,7 @@
 """ASGI middleware registration, kept out of main.py so the entrypoint stays thin."""
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from .config import get_settings
@@ -16,10 +16,23 @@ def _cors_origins() -> list[str]:
 
 
 def register_middleware(app: FastAPI) -> None:
-    """Wire all app middleware. Currently just CORS (allowlist from FRONTEND_ORIGIN)."""
+    """Wire CORS and private-cache controls for child report surfaces."""
     app.add_middleware(
         CORSMiddleware,
         allow_origins=_cors_origins(),
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def private_report_cache_control(request: Request, call_next):
+        response = await call_next(request)
+        path = request.url.path
+        if (
+            path == "/reports"
+            or path.startswith("/reports/")
+            or path == "/report-invitations"
+            or path.startswith("/report-invitations/")
+        ):
+            response.headers["Cache-Control"] = "no-store, private"
+        return response

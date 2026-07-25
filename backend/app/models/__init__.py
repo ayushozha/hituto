@@ -16,6 +16,13 @@ from .course import (
 )
 from .insight import InsightPreference, InsightSnapshot, LearningEvent
 from .profile import LearnerProfile
+from .report import (
+    Learner,
+    LearnerAccessGrant,
+    ProgressReport,
+    ReportAuditEvent,
+    ReportDelivery,
+)
 from .source import CourseSource, LessonSourcePack, SourceChunk, SourceDocument
 
 __all__ = [
@@ -32,6 +39,11 @@ __all__ = [
     "InsightSnapshot",
     "InsightPreference",
     "LearnerProfile",
+    "Learner",
+    "LearnerAccessGrant",
+    "ProgressReport",
+    "ReportDelivery",
+    "ReportAuditEvent",
     "SourceDocument",
     "SourceChunk",
     "CourseSource",

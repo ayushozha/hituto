@@ -4,6 +4,7 @@ import { Show, SignInButton } from "@clerk/react";
 import { BrandMark } from "../../components/BrandMark";
 import { ClerkAuthControls } from "../../components/ClerkAuthControls";
 import { Mascot } from "../../components/Mascot";
+import { AUTH_DISABLED } from "../../context/AuthContext";
 import { hashFor } from "../../routing";
 
 type LandingProps = {
@@ -68,26 +69,35 @@ function LandingHeader({ onStart }: LandingProps) {
         </nav>
 
         <div className="flex shrink-0 items-center justify-self-end gap-1 sm:gap-2">
-          <div className="hidden sm:block">
-            <Show when="signed-out">
-              <ClerkAuthControls variant="signIn" />
-            </Show>
-          </div>
-          <Show when="signed-out">
+          {AUTH_DISABLED ? (
             <PrimaryButton onClick={onStart} className="min-h-11 px-5">
-              <span className="hidden sm:inline">Start free</span>
-              <span className="sm:hidden">Start</span>
+              <span className="hidden sm:inline">Open local demo</span>
+              <span className="sm:hidden">Open</span>
             </PrimaryButton>
-          </Show>
-          <Show when="signed-in">
-            <PrimaryButton
-              onClick={() => { window.location.hash = hashFor({ kind: "dashboard" }); }}
-              className="min-h-11 px-5"
-            >
-              <span className="hidden sm:inline">Open dashboard</span>
-              <span className="sm:hidden">Dashboard</span>
-            </PrimaryButton>
-          </Show>
+          ) : (
+            <>
+              <div className="hidden sm:block">
+                <Show when="signed-out">
+                  <ClerkAuthControls variant="signIn" />
+                </Show>
+              </div>
+              <Show when="signed-out">
+                <PrimaryButton onClick={onStart} className="min-h-11 px-5">
+                  <span className="hidden sm:inline">Start free</span>
+                  <span className="sm:hidden">Start</span>
+                </PrimaryButton>
+              </Show>
+              <Show when="signed-in">
+                <PrimaryButton
+                  onClick={() => { window.location.hash = hashFor({ kind: "dashboard" }); }}
+                  className="min-h-11 px-5"
+                >
+                  <span className="hidden sm:inline">Open dashboard</span>
+                  <span className="sm:hidden">Dashboard</span>
+                </PrimaryButton>
+              </Show>
+            </>
+          )}
           <button
             type="button"
             onClick={() => setMenuOpen((open) => !open)}
@@ -118,7 +128,19 @@ function LandingHeader({ onStart }: LandingProps) {
               Waitlist
             </MobileNavItem>
             <div className="mt-1 border-t border-ink/5 px-2 py-2">
-              <Show when="signed-out">
+              {AUTH_DISABLED ? (
+                <button
+                  type="button"
+                  onClick={() => runMobileAction(onStart)}
+                  className="flex min-h-12 w-full items-center gap-3 rounded-2xl px-2 text-left text-sm font-semibold text-ink-soft transition hover:bg-bone hover:text-ink"
+                >
+                  <span className="material-symbols-outlined text-[19px] text-brand" aria-hidden="true">
+                    dashboard
+                  </span>
+                  Open local demo
+                </button>
+              ) : (
+                <Show when="signed-out">
                 <SignInButton mode="modal">
                   <button
                     type="button"
@@ -129,7 +151,8 @@ function LandingHeader({ onStart }: LandingProps) {
                     Sign in
                   </button>
                 </SignInButton>
-              </Show>
+                </Show>
+              )}
             </div>
           </nav>
         ) : null}
