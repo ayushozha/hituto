@@ -41,3 +41,15 @@ When presentation is `auto`, `needs_3d: true` or a Hunyuan mesh selects **studio
 ## Page / slide mode
 
 Follow `coursegen/prompts/lesson_system.md` paper theme (Bricolage / Jakarta / cobalt / grass).
+
+## Archetype skills (game / simulation)
+
+When the lesson `archetype` is `game` or `simulation`, also follow the injected skill:
+
+| Archetype | Skill | Intent |
+|---|---|---|
+| `game` | `skills/game` | Default: dominant Three.js explore gallery (goal → explore stations → progress → reset) |
+| `simulation` | `skills/simulation` | Parameterize → play/step → readout (no required win) |
+
+Game lessons are stage-first (Recursion Galleries–style), not scroll textbooks. Classic pinned
+Three.js only — never Phaser, ES modules, or third-party jam art packs.

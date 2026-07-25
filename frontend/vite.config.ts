@@ -24,6 +24,7 @@ export default defineConfig({
       "/image": backend,
       "/audio": backend,
       "/mesh": backend,
+      "/game-kits": backend,
       "/maps": backend,
       "/health": backend,
     },

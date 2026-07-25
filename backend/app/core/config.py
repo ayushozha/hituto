@@ -47,7 +47,7 @@ class Settings(BaseSettings):
         ),
     )
     llm_model: str = Field(
-        default="claude-sonnet-4-6",
+        default="claude-sonnet-5",
         validation_alias=AliasChoices("LLM_MODEL", "GMI_MODEL", "NEBIUS_CHAT_MODEL"),
     )
     llm_max_tokens: int = Field(
@@ -439,6 +439,12 @@ class Settings(BaseSettings):
     reading_design_enabled: bool = Field(
         default=False,
         validation_alias=AliasChoices("READING_DESIGN_ENABLED"),
+    )
+    # GameManifest design: archetype=game → validated toon-gallery manifest + server
+    # Three.js runtime (no LLM-authored game loop). Fail-closed to page when off / invalid.
+    game_design_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("GAME_DESIGN_ENABLED"),
     )
     upload_dir: str = "uploads"
     max_upload_mb: int = 25

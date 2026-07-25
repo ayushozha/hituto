@@ -1,0 +1,232 @@
+/* Hi Tuto game gallery — stage-first toon explore. */
+
+:root {
+  --game-ink: #f4f4f5;
+  --game-ink-soft: #a1a1aa;
+  --game-bg: #0b1220;
+  --game-panel: #111827;
+  --game-line: #27272a;
+  --game-lime: #16a34a;
+  --game-lime-soft: #eaf7ee;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  background: #0a0f1a;
+  color: var(--game-ink);
+  font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+}
+
+.game-stage {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem 1rem 1.25rem;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.game-goal {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--game-ink-soft);
+}
+
+.game-goal strong {
+  color: var(--game-ink);
+  font-weight: 600;
+}
+
+#stage3d-wrap {
+  position: relative;
+  width: 100%;
+  height: min(58vh, 520px);
+  min-height: 280px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--game-bg);
+  border: 1px solid var(--game-line);
+}
+
+#stage3d {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  cursor: grab;
+}
+
+#stage3d.is-dragging { cursor: grabbing; }
+
+.game-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 0.75rem;
+}
+
+.game-btn {
+  appearance: none;
+  border: none;
+  border-radius: 8px;
+  padding: 0.55rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  background: var(--game-lime);
+  color: #fff;
+}
+
+.game-btn:hover { filter: brightness(1.05); }
+.game-btn:focus-visible {
+  outline: 2px solid var(--game-lime-soft);
+  outline-offset: 2px;
+}
+
+.game-btn.secondary {
+  background: transparent;
+  color: var(--game-ink);
+  border: 1px solid var(--game-line);
+}
+
+#visit-count {
+  font-size: 0.85rem;
+  color: var(--game-ink-soft);
+  margin-left: auto;
+}
+
+#visit-count.is-win {
+  color: var(--game-lime);
+  font-weight: 600;
+}
+
+#plaque {
+  background: var(--game-panel);
+  border: 1px solid var(--game-line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+  min-height: 5.5rem;
+}
+
+#plaque-kicker {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--game-ink-soft);
+  margin-bottom: 0.25rem;
+}
+
+#plaque-title {
+  margin: 0 0 0.35rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--game-ink);
+}
+
+#plaque-copy {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--game-ink-soft);
+}
+
+.gesture-tip {
+  position: absolute;
+  left: 0.75rem;
+  bottom: 0.75rem;
+  font-size: 0.72rem;
+  color: rgba(244, 244, 245, 0.55);
+  pointer-events: none;
+}
+
+#stack-status.is-win {
+  color: var(--game-lime);
+  font-weight: 600;
+}
+
+.stack-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background: var(--game-panel);
+  border: 1px solid var(--game-line);
+  border-radius: 12px;
+  padding: 0.9rem 1rem;
+}
+
+.stack-kicker {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--game-lime);
+  margin-bottom: 0.25rem;
+}
+
+#stack-story {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--game-ink-soft);
+}
+
+.program-block {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  background: #0b1220;
+  border: 1px solid var(--game-line);
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: #e4e4e7;
+  overflow-x: auto;
+}
+
+.stack-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.frame-btn {
+  appearance: none;
+  border: 1px solid var(--game-line);
+  border-radius: 8px;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+  background: #1e293b;
+  color: var(--game-ink);
+}
+
+.frame-btn:hover:not(:disabled) {
+  border-color: var(--game-lime);
+  color: #fff;
+}
+
+.frame-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.frame-btn.is-next {
+  border-color: var(--game-lime);
+  box-shadow: 0 0 0 1px rgba(22, 163, 74, 0.35);
+}
+
+.stack-bar #stack-status {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--game-ink-soft);
+}
+
+[hidden] { display: none !important; }

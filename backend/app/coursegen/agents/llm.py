@@ -22,6 +22,8 @@ def chat_model(*, heavy: bool = False):
     """OpenAI-compatible `ChatOpenAI` for coursegen Deep Agents (env-configured)."""
     from langchain_openai import ChatOpenAI
 
+    from ...providers.llm import model_rejects_temperature
+
     s = get_settings()
     if heavy:
         model = s.resolved_coursegen_llm_model()
@@ -35,13 +37,16 @@ def chat_model(*, heavy: bool = False):
         key_hint = "LLM_API_KEY"
     if not api_key:
         raise RuntimeError(f"{key_hint} not set — coursegen Deep Agents need a chat model")
-    return ChatOpenAI(
-        model=model,
-        base_url=base_url,
-        api_key=api_key,
-        temperature=0.3,
-        max_tokens=s.llm_max_tokens,
-    )
+    kwargs: dict = {
+        "model": model,
+        "base_url": base_url,
+        "api_key": api_key,
+        "max_tokens": s.llm_max_tokens,
+    }
+    # Claude 5 OpenAI-compat rejects any temperature; omit rather than 400.
+    if not model_rejects_temperature(model):
+        kwargs["temperature"] = 0.3
+    return ChatOpenAI(**kwargs)
 
 
 def assign_subagent_models(subagents: list[dict]) -> list[dict]:

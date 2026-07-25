@@ -120,12 +120,39 @@ def teaching_map_chapter(doc: SourceDocument, chapter_id: str) -> dict | None:
 
 
 async def _load_bytes(locator: str) -> bytes:
+    """Load parse artifact bytes from a local path or InsForge storage key.
+
+    Ingest always mirrors to ``uploads/parses/{source_id}/{hash}/…`` even when the
+    durable key is the remote ``sources/{id}/parses/{hash}/…`` form. Prefer an
+    existing local mirror before hitting storage, so a failed InsForge upload
+    (or later 503) still grounds generation.
+    """
     p = Path(locator)
     if p.exists():
         return p.read_bytes()
+
+    local = _local_parse_mirror(locator)
+    if local is not None and local.exists():
+        return local.read_bytes()
+
     if storage.is_configured():
-        return await storage.download(locator)
+        try:
+            return await storage.download(locator)
+        except Exception:
+            if local is not None and local.exists():
+                return local.read_bytes()
+            raise
     raise FileNotFoundError(locator)
+
+
+def _local_parse_mirror(locator: str) -> Path | None:
+    """Map ``sources/{id}/parses/{hash}/…`` → ``{upload_dir}/parses/{id}/{hash}/…``."""
+    parts = Path(locator).parts
+    if len(parts) < 4 or parts[0] != "sources" or parts[2] != "parses":
+        return None
+    from ..core.config import get_settings
+
+    return Path(get_settings().upload_dir) / "parses" / parts[1] / Path(*parts[3:])
 
 
 async def get_chapter_context(

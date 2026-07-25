@@ -1,4 +1,4 @@
-"""Resolve capsule presentation (studio / page / slide) from knobs + plan."""
+"""Resolve capsule presentation (studio / page / slide / reading / game) from knobs + plan."""
 from __future__ import annotations
 
 import re
@@ -12,17 +12,20 @@ _SPATIAL_RE = re.compile(
 
 
 def resolve_presentation(plan: dict[str, Any] | None = None, knobs: dict[str, Any] | None = None) -> str:
-    """Return concrete design mode / capsule shell: studio | page | slide | reading.
+    """Return concrete design mode / capsule shell: studio | page | slide | reading | game.
 
-    Explicit knobs/plan win. ``auto`` picks studio for spatial/3D lessons, reading for
-    prose-heavy document-grounded chapters (flag-gated, specs/design_agents step 4),
-    else page. Reads ``design_mode`` (preferred) or legacy ``presentation``.
+    Explicit knobs/plan win. ``auto`` picks studio for spatial/3D lessons, game for
+    ``archetype=game`` when flag-gated, reading for prose-heavy document-grounded
+    chapters (flag-gated), else page. Reads ``design_mode`` (preferred) or legacy
+    ``presentation``.
     """
     from ..core.config import get_settings
 
     plan = plan or {}
     knobs = knobs or {}
-    reading_enabled = get_settings().reading_design_enabled
+    settings = get_settings()
+    reading_enabled = settings.reading_design_enabled
+    game_enabled = settings.game_design_enabled
     raw = (
         plan.get("design_mode")
         or plan.get("presentation")
@@ -36,6 +39,13 @@ def resolve_presentation(plan: dict[str, Any] | None = None, knobs: dict[str, An
     if raw == "reading":
         # Fail closed to page when the design is off or there is nothing to read.
         return "reading" if reading_enabled and plan.get("source_pack") else "page"
+    if raw == "game":
+        return "game" if game_enabled else "page"
+
+    archetype = str(plan.get("archetype") or knobs.get("archetype") or "").lower()
+    # Prefer the game gallery over Studio when the lesson is explicitly a mini-game.
+    if game_enabled and archetype == "game":
+        return "game"
 
     if plan.get("needs_3d") or knobs.get("needs_3d") is True:
         return "studio"
@@ -55,7 +65,7 @@ def resolve_presentation(plan: dict[str, Any] | None = None, knobs: dict[str, An
     if (
         reading_enabled
         and plan.get("source_pack")
-        and str(plan.get("archetype") or "").lower() in ("explainer", "narrative")
+        and archetype in ("explainer", "narrative")
     ):
         return "reading"
     return "page"

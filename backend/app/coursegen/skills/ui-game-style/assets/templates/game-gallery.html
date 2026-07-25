@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en" data-game-mode="__GAME_MODE__">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="hituto-presentation" content="game">
+  <meta name="hituto-game-mode" content="__GAME_MODE__">
+  <title>__GAME_TITLE__</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="__THREE_JS_CDN__"></script>
+  <script src="__GLTF_LOADER_CDN__"></script>
+  <style>
+__GAME_CSS__
+  </style>
+</head>
+<body>
+  <section
+    class="game-stage"
+    id="game-stage"
+    data-lesson-section="game-stage"
+    data-lesson-title="Play the learning game"
+  >
+    <p class="game-goal" id="game-goal"><strong>Goal.</strong> __GAME_GOAL__</p>
+
+    <div id="stage3d-wrap">
+      <canvas id="stage3d" width="960" height="540" aria-label="3D learning game stage"></canvas>
+      <div class="gesture-tip" id="gesture-tip">Drag to orbit</div>
+    </div>
+
+    <!-- toon-gallery controls -->
+    <div class="game-controls" id="gallery-controls" hidden>
+      <button class="game-btn" type="button" id="btn-next" data-lesson-control="game-next">Next</button>
+      <button class="game-btn secondary" type="button" id="btn-reset" data-lesson-control="game-reset">Reset</button>
+      <span id="visit-count" aria-live="polite">Visited 0 / 0</span>
+    </div>
+
+    <!-- stack-builder controls -->
+    <div class="stack-panel" id="stack-panel" hidden>
+      <div class="stack-story">
+        <span class="stack-kicker" id="phase-kicker">Phase 1 · Push</span>
+        <p id="stack-story">Follow the program.</p>
+        <pre class="program-block" id="program-block"></pre>
+      </div>
+      <div class="stack-actions" id="stack-actions"></div>
+      <div class="game-controls stack-bar">
+        <button class="game-btn secondary" type="button" id="btn-pop" data-lesson-control="game-pop" hidden>Pop top</button>
+        <button class="game-btn secondary" type="button" id="btn-stack-reset" data-lesson-control="game-reset">Reset</button>
+        <span id="stack-status" aria-live="polite">Stack: empty</span>
+      </div>
+    </div>
+
+    <aside id="plaque" aria-live="polite">
+      <span id="plaque-kicker">Coach</span>
+      <h2 id="plaque-title">Let's play</h2>
+      <p id="plaque-copy">Read the goal, then take your first move.</p>
+    </aside>
+  </section>
+
+  <script id="game-manifest" type="application/json">__GAME_MANIFEST__</script>
+  <script>
+__GAME_RUNTIME__
+  </script>
+</body>
+</html>

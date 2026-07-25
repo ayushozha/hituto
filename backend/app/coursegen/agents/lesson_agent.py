@@ -77,7 +77,7 @@ def build_lesson_agent(
 
     subagents += [
         image_artist_subagent(subject),
-        capsule_author_subagent(subject, design=design),
+        capsule_author_subagent(subject, design=design, archetype=archetype),
         qa_reviewer_subagent(subject),
     ]
     assign_subagent_models(subagents)
@@ -131,10 +131,15 @@ async def run_lesson_deep_agent(course_id: str, lesson_id: str, topic: str, knob
             from ..presentation import resolve_presentation
 
             if resolve_presentation(
-                {"title": lesson.title, "topic": course.topic, "presentation": presentation},
+                {
+                    "title": lesson.title,
+                    "topic": course.topic,
+                    "archetype": archetype,
+                    "presentation": presentation,
+                },
                 knobs_db,
-            ) == "studio":
-                return False  # Studio v2 uses the graph's validated manifest + owned renderer.
+            ) in ("studio", "game"):
+                return False  # Studio/GameManifest use the graph's validated renderers.
             course_title = course.title or course.topic
             lesson_title = lesson.title
             objective = lesson.objective
@@ -165,7 +170,12 @@ async def run_lesson_deep_agent(course_id: str, lesson_id: str, topic: str, knob
         from ..presentation import resolve_presentation
 
         design = resolve_presentation(
-            {"title": lesson_title, "topic": course_title, "presentation": presentation},
+            {
+                "title": lesson_title,
+                "topic": course_title,
+                "archetype": archetype,
+                "presentation": presentation,
+            },
             knobs_db,
         )
         agent = build_lesson_agent(

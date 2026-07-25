@@ -20,8 +20,8 @@ def _load_prompt(name: str) -> str:
     return (_PROMPTS / f"{name}.md").read_text(encoding="utf-8").rstrip("\n")
 
 
-@lru_cache
 def _load_skill(name: str) -> str:
+    # Not cached: skill markdown is iterated often; stale prompts are worse than a cheap read.
     return (_SKILLS / name / "SKILL.md").read_text(encoding="utf-8").rstrip("\n")
 
 
@@ -85,6 +85,7 @@ CHANGE REQUEST / PLAN:
     presentation = _presentation_block(plan)
     mesh = _mesh_block(plan)
     learner = _learner_block(plan)
+    archetype_skill = _archetype_skill_block(plan)
     # Never put mesh bytes in the LLM prompt (Nebius 400 / huge traces).
     plan_for_llm = dict(plan)
     ma = plan_for_llm.get("mesh_artifact")
@@ -98,6 +99,7 @@ CHANGE REQUEST / PLAN:
         + presentation
         + mesh
         + learner
+        + archetype_skill
         + brief
         + "\n\n<<PLAN>>"
         + json.dumps(plan_for_llm)
@@ -123,6 +125,33 @@ def build_generation_repair_suffix(prior_html: str, failed: list[str], attempt: 
         tail = prior_html[-12000:] if len(prior_html) > 12000 else prior_html
         lines.append(f"\nPrior output to fix or replace:\n```html\n{tail}\n```")
     return "\n".join(lines)
+
+
+# Archetype → coursegen skill folder injected into the user brief (game / simulation).
+_ARCHETYPE_SKILLS = {
+    "game": "game",
+    "simulation": "simulation",
+}
+
+
+def _archetype_skill_block(plan: dict) -> str:
+    """Inject playable game / simulation authoring skill when the plan archetype matches."""
+    arch = str(plan.get("archetype") or "explainer").lower()
+    skill_name = _ARCHETYPE_SKILLS.get(arch)
+    if not skill_name:
+        return ""
+    try:
+        body = _load_skill(skill_name)
+    except OSError:
+        return ""
+    if not body:
+        return ""
+    header = (
+        f"## Archetype skill — REQUIRED for this {arch} lesson\n"
+        f"Follow the `{skill_name}` skill below. Ship a working interactive surface "
+        f"(not a mockup).\n\n"
+    )
+    return header + body + "\n\n"
 
 
 def _trace_block(trace: dict | None) -> str:
@@ -165,6 +194,13 @@ def _presentation_block(plan: dict) -> str:
             "- Prev/Next controls with data-lesson-control; progress dots; keep each slide short.\n"
             "- Still include one canvas viz + one go-data-src image + one interactive control.\n"
             "- Use the shared Hi Tuto cream, forest, lime, and lilac design contract.\n\n"
+        )
+    if mode == "game":
+        return (
+            "PRESENTATION = game (GameManifest / ui-game-style) — MANDATORY:\n"
+            "- Stage-first toon gallery: Goal, #stage3d, Next/Reset, Visited N/M, plaque.\n"
+            "- Characters only from /game-kits/toon/; classic Three.js + GLTFLoader pins.\n"
+            "- Prefer the server GameManifest path; do not freestyle a second Three.js loop.\n\n"
         )
     return (
         "PRESENTATION = page — responsive scrollable interactive mini-app using the shared Hi Tuto "

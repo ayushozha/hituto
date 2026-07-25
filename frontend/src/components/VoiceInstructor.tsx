@@ -66,6 +66,7 @@ export default function VoiceInstructor({
   const [error, setError] = useState<string | null>(null);
   const [level, setLevel] = useState(0);
   const [listening, setListening] = useState(false);
+  const [micMuted, setMicMuted] = useState(false);
   const [dockMode, setDockMode] = useState<DockMode>("text");
   const [draft, setDraft] = useState("");
   const [widgets, setWidgets] = useState<RenderedWidget[]>([]);
@@ -83,6 +84,7 @@ export default function VoiceInstructor({
   const playbackSources = useRef<AudioBufferSourceNode[]>([]);
   const voiceAudioEnabled = useRef(false);
   const playbackMuted = useRef(false);
+  const micMutedRef = useRef(false);
   const ttsSampleRate = useRef(48000);
   const pending = useRef<Record<string, { name: string; args: string }>>({});
   const singletonWidgetIds = useRef<Record<string, string>>({});
@@ -510,10 +512,27 @@ export default function VoiceInstructor({
     voiceAudioEnabled.current = false;
     preRoll.current = [];
     speaking.current = false;
+    micMutedRef.current = false;
+    setMicMuted(false);
     setLevel(0);
     setListening(false);
     stopPlayback();
     playbackMuted.current = false;
+  }
+
+  /** Mute the mic so tutor TTS through speakers doesn't trip local VAD / barge-in. */
+  function toggleMicMute() {
+    const next = !micMutedRef.current;
+    micMutedRef.current = next;
+    setMicMuted(next);
+    if (next) {
+      preRoll.current = [];
+      setLevel(0);
+      if (speaking.current) {
+        speaking.current = false;
+        sendFrame({ type: "audio.stop" });
+      }
+    }
   }
 
   async function switchToTextMode() {
@@ -522,6 +541,16 @@ export default function VoiceInstructor({
   }
 
   function processInput(input: Float32Array, sourceRate: number) {
+    // Hard-stop capture while muted so speaker playback can't open a false turn.
+    if (micMutedRef.current) {
+      if (speaking.current) {
+        speaking.current = false;
+        sendFrame({ type: "audio.stop" });
+      }
+      preRoll.current = [];
+      setLevel(0);
+      return;
+    }
     const rms = calculateRms(input);
     setLevel(Math.min(1, rms * 12));
     const now = performance.now();
@@ -682,15 +711,17 @@ export default function VoiceInstructor({
   }
 
   const statusMeta =
-    status === "live" && listening
-      ? { text: "Listening…", cls: "text-lime" }
-      : status === "live"
-        ? { text: "I’m here", cls: "text-white/60" }
-      : status === "connecting"
-        ? { text: "One sec…", cls: "text-sky" }
-        : status === "error"
-          ? { text: "Something’s off", cls: "text-coral" }
-          : { text: "Ready", cls: "text-paper/70" };
+    status === "live" && micMuted
+      ? { text: "Muted", cls: "text-white/55" }
+      : status === "live" && listening
+        ? { text: "Listening…", cls: "text-lime" }
+        : status === "live"
+          ? { text: "I’m here", cls: "text-white/60" }
+          : status === "connecting"
+            ? { text: "One sec…", cls: "text-sky" }
+            : status === "error"
+              ? { text: "Something’s off", cls: "text-coral" }
+              : { text: "Ready", cls: "text-paper/70" };
 
   const visibleTranscript = useMemo(() => transcript.slice(-3), [transcript]);
   const active = status === "live" || status === "connecting";
@@ -847,11 +878,13 @@ export default function VoiceInstructor({
           <VoiceModeDock
             level={level}
             listening={listening}
+            micMuted={micMuted}
             status={status}
             statusMeta={statusMeta}
             widgetCount={widgets.length}
             chatVisible={chatVisible}
             onToggleChat={() => setChatVisible((v) => !v)}
+            onToggleMute={toggleMicMute}
             onStopAudio={() => void switchToTextMode()}
             onClearWidgets={clearWidgets}
             onClose={onClose}
@@ -978,11 +1011,13 @@ function TextModeDock({
 type VoiceModeDockProps = {
   level: number;
   listening: boolean;
+  micMuted: boolean;
   status: Status;
   statusMeta: StatusMeta;
   widgetCount: number;
   chatVisible: boolean;
   onToggleChat: () => void;
+  onToggleMute: () => void;
   onStopAudio: () => void;
   onClearWidgets: () => void;
   onClose?: () => void;
@@ -991,20 +1026,23 @@ type VoiceModeDockProps = {
 function VoiceModeDock({
   level,
   listening,
+  micMuted,
   status,
   statusMeta,
   widgetCount,
   chatVisible,
   onToggleChat,
+  onToggleMute,
   onStopAudio,
   onClearWidgets,
   onClose,
 }: VoiceModeDockProps) {
   const connecting = status === "connecting";
+  const liveBars = listening && !micMuted;
   return (
     <div className="pointer-events-auto flex w-[min(580px,calc(100vw-28px))] items-center gap-2 rounded-2xl bg-ink p-2 text-white shadow-panel ring-2 ring-lime/40 animate-fade-up">
       <div className="relative ml-1 shrink-0">
-        <div className={listening ? "animate-mascot-bob" : undefined}>
+        <div className={liveBars ? "animate-mascot-bob" : undefined}>
           <Mascot mood="tutor" className="h-11 w-11" title="Voice tutor" />
         </div>
       </div>
@@ -1020,9 +1058,31 @@ function VoiceModeDock({
         <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: '"FILL" 1' }}>
           graphic_eq
         </span>
-        {listening && (
+        {liveBars && (
           <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-lime ring-2 ring-ink" />
         )}
+      </button>
+
+      <button
+        type="button"
+        onClick={onToggleMute}
+        disabled={connecting}
+        className={`grid h-11 w-11 shrink-0 place-items-center rounded-full transition disabled:opacity-50 ${
+          micMuted
+            ? "bg-white text-ink hover:bg-white/90"
+            : "bg-white/10 text-white hover:bg-white/20"
+        }`}
+        title={micMuted ? "Unmute microphone" : "Mute microphone"}
+        aria-label={micMuted ? "Unmute microphone" : "Mute microphone"}
+        aria-pressed={micMuted}
+      >
+        <span
+          className="material-symbols-outlined text-[20px]"
+          aria-hidden="true"
+          style={{ fontVariationSettings: '"FILL" 1' }}
+        >
+          {micMuted ? "mic_off" : "mic"}
+        </span>
       </button>
 
       <div className="flex h-11 min-w-0 flex-1 items-center gap-3 rounded-full bg-white/10 px-3">
@@ -1031,10 +1091,10 @@ function VoiceModeDock({
             <span
               key={i}
               className={`w-[3px] rounded-full transition-[height] duration-100 motion-reduce:transition-none ${
-                listening ? "bg-lime" : "bg-white/35"
+                liveBars ? "bg-lime" : "bg-white/35"
               }`}
               style={{
-                height: listening ? `${Math.max(4, Math.min(26, 4 + level * 96 * scale))}px` : "5px",
+                height: liveBars ? `${Math.max(4, Math.min(26, 4 + level * 96 * scale))}px` : "5px",
               }}
             />
           ))}

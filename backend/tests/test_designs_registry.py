@@ -2,6 +2,7 @@
 from app.coursegen.designs import (
     AuthorContext,
     DesignOutput,
+    GameAgent,
     PageAgent,
     StudioAgent,
     get_design_agent,
@@ -10,12 +11,14 @@ from app.coursegen.designs import (
 
 def test_registry_dispatch_and_page_fallback() -> None:
     assert isinstance(get_design_agent("studio"), StudioAgent)
+    assert isinstance(get_design_agent("game"), GameAgent)
     assert isinstance(get_design_agent("page"), PageAgent)
     assert isinstance(get_design_agent("slide"), PageAgent)  # shell variant, same agent
     # Fail-closed: unknown/empty modes go to the universal page agent.
     assert isinstance(get_design_agent("holodeck"), PageAgent)
     assert isinstance(get_design_agent(None), PageAgent)
     assert isinstance(get_design_agent("  STUDIO "), StudioAgent)
+    assert isinstance(get_design_agent("  GAME "), GameAgent)
 
 
 async def test_studio_agent_stamps_manifest_into_plan(monkeypatch) -> None:

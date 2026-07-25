@@ -25,7 +25,10 @@ def artifact_csp() -> str:
         f"script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com {THREE_JS_CDN} {GLTF_LOADER_CDN} {CHART_JS_CDN}; "
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.tailwindcss.com; "
         "font-src https://fonts.gstatic.com data:; "
-        # blob: for GLTFLoader.load(objectURL) of cached meshes in sandboxed iframes.
-        "connect-src 'self' blob:; "
+        # Sandboxed capsules omit allow-same-origin (opaque origin), so 'self' alone does
+        # not match fetches to the host. Allow configured frontend origins for /mesh and
+        # /game-kits. data: covers embedded glTF buffers (Quaternius kits); blob: covers
+        # createObjectURL decode of fetched GLB/glTF.
+        f"connect-src 'self' blob: data: {_frontend_origins()}; "
         f"frame-ancestors 'self' {_frontend_origins()}"
     )

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import wave
 from io import BytesIO
+from pathlib import Path
 
 import httpx
 from fastapi import APIRouter, Response
@@ -96,6 +97,41 @@ async def mesh(key: str):
     if data:
         return Response(content=data, media_type="model/gltf-binary", headers=_MESH_HEADERS)
     return Response(status_code=404)
+
+
+# Curated CC0 game kits (Quaternius toon characters, etc.) for game-archetype capsules.
+# Served with ACAO=* like /mesh so sandboxed iframes can GLTFLoader.fetch them.
+_GAME_KITS_ROOT = Path(__file__).resolve().parents[3] / "game_kits"
+_GAME_KIT_ALLOW = {
+    "toon": frozenset(
+        {
+            "Character_Enemy.gltf",
+            "Character_Hazmat.gltf",
+            "Character_Soldier.gltf",
+        }
+    ),
+}
+
+
+@router.get("/game-kits/{kit}/{filename}")
+async def game_kit_asset(kit: str, filename: str):
+    """Serve a first-party game-kit glTF/GLB by kit name + filename (allow-listed)."""
+    allowed = _GAME_KIT_ALLOW.get(kit)
+    if not allowed or filename not in allowed:
+        return Response(status_code=404)
+    path = (_GAME_KITS_ROOT / kit / filename).resolve()
+    try:
+        path.relative_to((_GAME_KITS_ROOT / kit).resolve())
+    except ValueError:
+        return Response(status_code=404)
+    if not path.is_file():
+        return Response(status_code=404)
+    media = (
+        "model/gltf-binary"
+        if path.suffix.lower() == ".glb"
+        else "model/gltf+json"
+    )
+    return Response(content=path.read_bytes(), media_type=media, headers=_MESH_HEADERS)
 
 
 @router.get("/maps/geocode")

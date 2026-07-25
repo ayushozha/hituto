@@ -42,13 +42,38 @@ _DESIGN_HEADERS = {
     ),
 }
 
+# Lesson archetype → skill folder injected after the design shell (playable / sim contracts).
+_ARCHETYPE_SKILLS = {
+    "game": "game",
+    "simulation": "simulation",
+}
 
-def capsule_author_subagent(subject: str | None = None, *, design: str = "page") -> dict:
+_ARCHETYPE_HEADERS = {
+    "game": (
+        "## Game archetype — REQUIRED for this lesson\n"
+        "Follow the playable mini-game skill below. Ship a working goal → play → feedback → "
+        "reset loop (not a quiz card or dead canvas).\n"
+    ),
+    "simulation": (
+        "## Simulation archetype — REQUIRED for this lesson\n"
+        "Follow the simulation skill below. Ship parameterize → play/step → readout "
+        "(not a scored mini-game unless the plan also demands one).\n"
+    ),
+}
+
+
+def capsule_author_subagent(
+    subject: str | None = None,
+    *,
+    design: str = "page",
+    archetype: str = "explainer",
+) -> dict:
     """Deep Agent subagent dict: authors the HTML capsule to /build/capsule.html (§4).
 
     The resolved design type (`page` | `studio` | `slide`) selects the shell skill injected
     into the author prompt — the design shell is mandatory for the lesson, so it is injected
-    directly rather than left to on-demand skill discovery.
+    directly rather than left to on-demand skill discovery. Game / simulation archetypes also
+    get their playable / parameter-loop skill after the shell.
     """
     from ..prompt_loader import load_agent_prompt, load_skill
 
@@ -69,6 +94,14 @@ def capsule_author_subagent(subject: str | None = None, *, design: str = "page")
     shell = load_skill(_DESIGN_SKILLS[design])
     if shell:
         prompt = f"{prompt}\n\n{_DESIGN_HEADERS[design]}\n{shell}"
+    arch = (archetype or "explainer").lower()
+    skill_name = _ARCHETYPE_SKILLS.get(arch)
+    if skill_name:
+        arch_body = load_skill(skill_name)
+        if arch_body:
+            prompt = (
+                f"{prompt}\n\n{_ARCHETYPE_HEADERS[arch]}\n{arch_body}"
+            )
     return {
         "name": "capsule_author",
         "description": (

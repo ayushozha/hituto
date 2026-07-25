@@ -19,6 +19,7 @@ def test_frame_ancestors_converts_cors_allowlist_to_csp_sources(monkeypatch) -> 
         "frame-ancestors 'self' http://localhost:5173 https://8xdj824y.insforge.site"
         in csp
     )
+    assert "connect-src 'self' blob: data: http://localhost:5173 https://8xdj824y.insforge.site" in csp
 
 
 def test_capsule_bridge_reports_content_minimized_learning_events() -> None:

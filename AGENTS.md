@@ -246,8 +246,10 @@ the free tier when the JWT carries no plan.
 - **LLM** goes through one OpenAI-compatible client (`providers/llm.py`); the backend
   (base URL + key + model) is selected purely by env, so swapping providers is code-free.
   The default is now **Anthropic's OpenAI-compat endpoint** —
-  `LLM_BASE_URL=https://api.anthropic.com/v1`, `LLM_MODEL=claude-sonnet-4-6`, key via
+  `LLM_BASE_URL=https://api.anthropic.com/v1`, `LLM_MODEL=claude-sonnet-5`, key via
   `LLM_API_KEY`/`ANTHROPIC_API_KEY` (legacy `GMI_*`/`NEBIUS_*` aliases still resolve).
+  Agents are tiered by what they're for: coursegen authors capsules on `claude-opus-5`,
+  the SSE tutor answers on `claude-haiku-4-5`, everything else inherits the global Sonnet.
 - **Media** (`providers/media.py`) now runs on **OpenAI**: images via
   `POST /v1/images/generations` (`gpt-image-1.5`), lesson TTS via `POST /v1/audio/speech`
   (`gpt-4o-mini-tts`), keyed by `OPENAI_IMAGE_API_KEY` → falls back to `OPENAI_API_KEY` /
@@ -277,7 +279,7 @@ Clerk's JWKS (`CLERK_JWT_ISSUER`; optional `CLERK_JWKS_URL` override and
 pass the token as `?access_token=`. Clerk skills (`clerk-setup`, `clerk-custom-ui`, …) are
 pinned in `skills-lock.json` — use them before hand-rolling Clerk calls.
 
-[InsForge](https://insforge.dev) (project **TrailLearn**) is no longer the auth provider
+[InsForge](https://insforge.dev) (project **HiTuto**) is no longer the auth provider
 but remains the platform for storage buckets (`STORAGE_BUCKET`, `MESH_STORAGE_BUCKET`), the
 waitlist table (`frontend/src/lib/insforge.ts`, anon key only), and frontend hosting;
 root-level `migrations/` holds InsForge SQL migrations (CLI format). Use the installed
@@ -375,9 +377,9 @@ hardcode or commit keys.
 <!-- INSFORGE:START -->
 ## InsForge backend
 
-This project uses [InsForge](https://insforge.dev): a Postgres-based backend (BaaS) that gives this app a database, authentication, file storage, edge functions, realtime, an AI model gateway, and payments through one platform.
+This project uses [InsForge](https://insforge.dev): an all-in-one, open-source Postgres-based backend (BaaS) that gives this app a database, authentication, file storage, edge functions, realtime, an AI model gateway, and payments through one platform.
 
-- **Project:** **TrailLearn** (API base `https://8xdj824y.us-east.insforge.app`)
+- **Project:** **HiTuto** (API base `https://nse4cp27.us-east.insforge.app`)
 - **Skills:** these InsForge skills are installed for supported coding agents. Reach for them before implementing any InsForge feature instead of guessing the API:
   - `insforge`: app code with the `@insforge/sdk` client (database CRUD, auth, storage, edge functions, realtime, AI, email, and Stripe payments).
   - `insforge-cli`: backend and infrastructure via the `insforge` CLI (projects, SQL, migrations, RLS policies, storage buckets, functions, secrets, payment setup, schedules, deploys).

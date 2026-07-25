@@ -24,6 +24,15 @@ _MAX_CONTINUATIONS = 2
 # once seen, every later payload for that route omits the parameter.
 _TEMPERATURE_UNSUPPORTED: set[tuple[str, str]] = set()
 
+# Anthropic Claude 5.x OpenAI-compat routes reject `temperature` outright
+# ("`temperature` is deprecated for this model"). Claude 4.5 / 4.6 still accept it.
+_CLAUDE5_MODEL_RE = re.compile(r"(?:^|/)claude-(?:sonnet|opus|haiku)-5(?:$|[^0-9])", re.I)
+
+
+def model_rejects_temperature(model: str) -> bool:
+    """True when this model id must never receive a `temperature` field."""
+    return bool(_CLAUDE5_MODEL_RE.search((model or "").strip()))
+
 
 def _json_placeholder(ann):
     """A neutral value for a field annotation (used to build a minimal valid instance)."""
@@ -103,27 +112,39 @@ class OpenAICompatLLM:
             "Content-Type": "application/json",
         }
 
+    def _omits_temperature(self) -> bool:
+        """Skip `temperature` for known Claude 5 routes and any previously-rejected pair."""
+        if model_rejects_temperature(self.model):
+            return True
+        return (self.base_url, self.model) in _TEMPERATURE_UNSUPPORTED
+
     def _chat_payload(
         self, messages: list[dict], *, temperature: float, max_tokens: int, stream: bool = False
     ) -> dict:
         payload: dict = {"model": self.model, "messages": messages, "max_tokens": max_tokens}
-        if (self.base_url, self.model) not in _TEMPERATURE_UNSUPPORTED:
+        if not self._omits_temperature():
             payload["temperature"] = temperature
         if stream:
             payload["stream"] = True
         return payload
 
-    def _mark_temperature_unsupported(self, status_code: int, body: str) -> bool:
-        """Some router model routes reject any non-default `temperature` with a 400.
+    def _mark_temperature_unsupported(self, status_code: int, body: str, *, sent: bool) -> bool:
+        """Some model routes reject any `temperature` with a 400 (Anthropic's newer models
+        deprecate it outright).
 
         Records the (endpoint, model) pair so every later call omits the parameter, and
         returns True when the caller should retry this request immediately without it.
+
+        `sent` is what makes this concurrency-safe: section fan-out fires N requests before
+        any of them has seen the 400, so *every* caller that included the parameter must
+        retry — not only the one that happened to record the pair first.
         """
         key = (self.base_url, self.model)
-        if status_code == 400 and "temperature" in body and key not in _TEMPERATURE_UNSUPPORTED:
-            _TEMPERATURE_UNSUPPORTED.add(key)
-            logger.info("model %s rejects `temperature` — retrying without it", self.model)
-            return True
+        if status_code == 400 and "temperature" in body:
+            if key not in _TEMPERATURE_UNSUPPORTED:
+                _TEMPERATURE_UNSUPPORTED.add(key)
+                logger.info("model %s rejects `temperature` — retrying without it", self.model)
+            return sent
         return False
 
     @llm_traceable(
@@ -146,11 +167,21 @@ class OpenAICompatLLM:
                 )
                 try:
                     r = await client.post(url, headers=headers, json=payload)
-                    if self._mark_temperature_unsupported(r.status_code, r.text):
+                    if self._mark_temperature_unsupported(
+                        r.status_code, r.text, sent="temperature" in payload
+                    ):
                         continue  # retry immediately with the parameter stripped
                     if r.status_code in _RETRY_STATUS and attempt < len(_BACKOFF):
                         await asyncio.sleep(_retry_after(r) or _BACKOFF[attempt])
                         continue
+                    if r.status_code >= 400:
+                        # Include provider body — httpx's default message omits it.
+                        logger.error(
+                            "LLM %s %s: %s",
+                            r.status_code,
+                            self.model,
+                            (r.text or "")[:500],
+                        )
                     r.raise_for_status()
                     return r.json()
                 except httpx.HTTPStatusError as exc:
@@ -158,7 +189,13 @@ class OpenAICompatLLM:
                     if exc.response.status_code in _RETRY_STATUS and attempt < len(_BACKOFF):
                         await asyncio.sleep(_retry_after(exc.response) or _BACKOFF[attempt])
                         continue
-                    raise
+                    # Re-raise with response body so coursegen failure messages are actionable.
+                    body = (exc.response.text or "")[:300]
+                    raise httpx.HTTPStatusError(
+                        f"{exc} | body={body}",
+                        request=exc.request,
+                        response=exc.response,
+                    ) from None
                 except (httpx.TransportError, httpx.TimeoutException) as exc:
                     last_exc = exc
                     if attempt < len(_BACKOFF):
@@ -195,7 +232,9 @@ class OpenAICompatLLM:
                     async with client.stream("POST", url, headers=headers, json=payload) as r:
                         if r.status_code == 400:
                             body = (await r.aread()).decode("utf-8", errors="ignore")
-                            if self._mark_temperature_unsupported(r.status_code, body):
+                            if self._mark_temperature_unsupported(
+                                r.status_code, body, sent="temperature" in payload
+                            ):
                                 continue
                         r.raise_for_status()
                         return await self._consume_stream(r, on_delta)
@@ -299,7 +338,10 @@ class OpenAICompatLLM:
         metadata={"agent": "coursegen"},
     )
     async def generate_json(self, system: str, user: str, schema):
-        schema_json = json.dumps(schema.model_json_schema())
+        """`schema` is a Pydantic model class (returns a validated instance) or a plain
+        JSON-Schema dict (returns the parsed dict, e.g. rag/teaching_map.py)."""
+        is_model = hasattr(schema, "model_json_schema")
+        schema_json = json.dumps(schema.model_json_schema() if is_model else schema)
         data = await self._chat(
             [
                 {
@@ -316,14 +358,16 @@ class OpenAICompatLLM:
         )
         content = (data["choices"][0]["message"]["content"] or "").strip()
         content = _FENCE_RE.sub("", content).strip()
+        parse = schema.model_validate_json if is_model else json.loads
         try:
-            return schema.model_validate_json(content)
+            return parse(content)
         except Exception:
             m = _JSON_RE.search(content)
             if not m:
                 raise
-            logger.debug("Strict JSON parse failed for %s; recovered embedded JSON object", schema.__name__)
-            return schema.model_validate_json(m.group(0))
+            name = schema.__name__ if is_model else "json-schema dict"
+            logger.debug("Strict JSON parse failed for %s; recovered embedded JSON object", name)
+            return parse(m.group(0))
 
 
 def _retry_after(resp: httpx.Response) -> float | None:

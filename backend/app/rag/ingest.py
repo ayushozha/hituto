@@ -6,6 +6,7 @@ monkeypatch `app.rag.ingest.SessionLocal` to redirect the background DB session.
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from pathlib import Path
 
@@ -34,6 +35,8 @@ from .teaching_map import (
     materialize_chapter_md,
     ocr_quality_below_threshold,
 )
+
+logger = logging.getLogger(__name__)
 
 _EMBED_BATCH = 64  # texts per embedding request — bounds request size for big docs
 _EMBED_BATCH_TIMEOUT = 120  # seconds per batch — a stalled provider can't hang ingestion forever
@@ -174,16 +177,21 @@ def _parse_root(upload_dir: Path, source_id: str, source_hash: str) -> Path:
 
 
 async def _store_bytes(key: str, data: bytes, content_type: str, *, local_path: Path) -> str:
-    """Write parse artifacts to InsForge when configured, always also to local_path for tests."""
+    """Write parse artifacts to InsForge when configured, always also to local_path for tests.
+
+    Returns the locator callers should persist: the remote key on a successful upload,
+    otherwise the absolute local path so RAG can still load the artifact.
+    """
     local_path.parent.mkdir(parents=True, exist_ok=True)
     local_path.write_bytes(data)
     if storage.is_configured():
         try:
             res = await storage.upload(key, data, content_type)
             return res.get("key", key)
-        except Exception:  # noqa: BLE001 — keep local; ingest must not fail solely on storage
-            return str(local_path)
-    return str(local_path)
+        except Exception as exc:  # noqa: BLE001 — keep local; ingest must not fail solely on storage
+            logger.warning("storage upload failed for %s — using local %s (%s)", key, local_path, exc)
+            return str(local_path.resolve())
+    return str(local_path.resolve())
 
 
 async def _persist_canonical_artifacts(
@@ -211,7 +219,8 @@ async def _persist_canonical_artifacts(
         stored = await _store_bytes(fig_key, fig.data, ctype, local_path=root / "figures" / fig_name)
         entry = {
             "image_id": fig.image_id,
-            "storage_key": fig_key if storage.is_configured() else stored,
+            # Prefer whatever `_store_bytes` returned — local path when InsForge upload fails.
+            "storage_key": stored,
             "page": fig.page,
             "element_id": fig.element_id,
             "md_ref": fig.md_ref or fig_name,
@@ -251,8 +260,9 @@ async def _persist_canonical_artifacts(
         "source_hash": h,
         "parser_name": canon.parser_name,
         "parser_version": canon.parser_version,
-        "document_md_key": md_key if storage.is_configured() else md_loc,
-        "manifest_key": manifest_key if storage.is_configured() else man_loc,
+        # Use returned locators (remote key on success, local path when storage upload fails).
+        "document_md_key": md_loc,
+        "manifest_key": man_loc,
         "figures": figure_entries,
         "quality": dict(canon.quality or {}),
     }
@@ -282,7 +292,7 @@ async def _materialize_chapter_files(
             key, body.encode("utf-8"), "text/markdown", local_path=root / fig_name
         )
         entry = dict(ch)
-        entry["md_key"] = key if storage.is_configured() else loc
+        entry["md_key"] = loc
         entry["token_count"] = entry.get("token_count") or max(1, len(body.split()))
         chapters_out.append(entry)
     out = dict(teaching)

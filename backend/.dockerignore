@@ -1,0 +1,21 @@
+# Keep compute build context small and free of secrets/local state.
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+hituto.db
+*.db
+*.db-shm
+*.db-wal
+uploads
+tmp_quaternius
+.env
+.env.*
+!.env.example
+tests
+seed
+game_kits
+*.md
+.python-version

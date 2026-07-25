@@ -8,6 +8,7 @@ remains the single router that produces the mode.
 from __future__ import annotations
 
 from .base import AuthorContext, DesignAgent, DesignOutput
+from .game import GameAgent
 from .page import PageAgent
 from .reading import ReadingAgent
 from .studio import StudioAgent
@@ -16,6 +17,7 @@ __all__ = [
     "AuthorContext",
     "DesignAgent",
     "DesignOutput",
+    "GameAgent",
     "PageAgent",
     "ReadingAgent",
     "StudioAgent",
@@ -28,6 +30,7 @@ _REGISTRY: dict[str, DesignAgent] = {
     "slide": _PAGE,  # a slide is a capsule shell variant, not an authoring strategy
     "studio": StudioAgent(),
     "reading": ReadingAgent(),
+    "game": GameAgent(),
 }
 
 

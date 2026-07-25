@@ -465,6 +465,18 @@ async def asset_plan(state: GenState) -> GenState:
                 knobs["needs_3d"] = True
         else:
             knobs["needs_3d"] = False
+    elif presentation == "game":
+        from .game_manifest import prepare_game_plan
+
+        plan = prepare_game_plan(plan, knobs)
+        # Toon kit is first-party static — skip mesh / compute specialists.
+        await _emit(
+            state["course_id"],
+            "researching",
+            "Game stage locked — assembling toon gallery…",
+            50,
+        )
+        return {"plan": plan}
     archetype = (plan.get("archetype") or state.get("knobs", {}).get("archetype") or "explainer")
     concept = plan.get("title") or state.get("topic") or "concept"
     course_topic = state.get("topic") or ""
@@ -752,19 +764,31 @@ async def post_process(state: GenState) -> GenState:
         )
     else:
         checks = await validate_artifact_runtime(html, checks)
-    manifest = (state.get("plan") or {}).get("studio_manifest")
-    if isinstance(manifest, dict):
+    plan_meta = state.get("plan") or {}
+    studio_manifest = plan_meta.get("studio_manifest")
+    game_manifest = plan_meta.get("game_manifest")
+    if isinstance(studio_manifest, dict):
         checks.update(
             {
                 "presentation": "studio",
-                "studio_mode": manifest.get("mode"),
-                "studio_manifest_version": manifest.get("schema_version", "2.0"),
+                "studio_mode": studio_manifest.get("mode"),
+                "studio_manifest_version": studio_manifest.get("schema_version", "2.0"),
+            }
+        )
+    elif isinstance(game_manifest, dict):
+        checks.update(
+            {
+                "presentation": "game",
+                "game_mode": game_manifest.get("mode"),
+                "game_manifest_version": game_manifest.get("schema_version", "1.0"),
             }
         )
     else:
+        from .game_renderer import game_artifact_metadata
         from .studio_renderer import studio_artifact_metadata
 
         checks.update(studio_artifact_metadata(html))
+        checks.update(game_artifact_metadata(html))
     out: GenState = {"html": html, "checks": checks, "artifact_kind": "html"}
 
     # Grounding validation for source-grounded lessons (tasks.md #34, #35, #37).
