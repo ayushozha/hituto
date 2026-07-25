@@ -36,9 +36,9 @@ Hi Tuto reimagines online learning by replacing pre-authored static content with
 
 1. **Enter a topic** (e.g., "Quantum Mechanics") or **upload a PDF/document**
 2. The system **plans a locked lesson roadmap** (3–6 lessons, prerequisite-ordered)
-3. Lessons are **generated just-in-time** as interactive HTML capsules
+3. Lessons are **generated just-in-time** as interactive **HTML capsules**, streamed live into GenerationTheater while they author
 4. Each lesson renders in a **sandboxed iframe** with canvases, interactive controls, and images
-5. An **AI tutor** answers questions via trusted React widgets (quizzes, flashcards, diagrams, charts)
+5. An **AI tutor** answers questions via trusted React widgets (A2UI quizzes, flashcards, diagrams, charts)
 6. A **voice instructor** teaches on top of the capsule in real-time, observing and driving the page
 7. The private **Learning insights** view summarizes active time, answer correctness, lesson progress, tutor usage, interests, and supported struggle signals
 
@@ -60,7 +60,7 @@ Hi Tuto reimagines online learning by replacing pre-authored static content with
 graph TB
     subgraph Frontend ["Frontend (React + Vite + TypeScript)"]
         Landing[Landing Page]
-        Auth[Auth / InsForge]
+        Auth[Auth / Clerk]
         Studio[Dashboard / Studio]
         Roadmap[Course Roadmap]
         Viewer[Lesson Viewer]
@@ -134,16 +134,17 @@ graph TB
 
 | Layer | Technology |
 |-------|-----------|
-| **Backend** | Python 3.11, FastAPI, SQLAlchemy ORM, LangGraph, Pydantic |
+| **Backend** | Python 3.11+, FastAPI, SQLAlchemy ORM, LangGraph, Pydantic |
 | **Frontend** | React 18, TypeScript, Vite 5, Tailwind CSS 3.4 |
-| **Auth & Storage** | InsForge (`@insforge/sdk`, JWT HS256) |
-| **LLM** | OpenAI-compatible (Nebius Token Factory, GMI Cloud) — model: `zai-org/GLM-5.2` |
+| **Auth** | Clerk (`@clerk/react`, RS256 JWKS) |
+| **Storage / waitlist** | InsForge (buckets + waitlist only — not auth) |
+| **LLM** | Anthropic Claude via OpenAI-compat (`https://api.anthropic.com/v1`, default `claude-sonnet-4-6`) — any OpenAI-compatible endpoint works |
 | **Voice** | OpenAI Realtime S2S (`gpt-realtime-2.1`) |
-| **Image Generation** | TokenRouter (Gemini Flash Lite) / GMI Cloud |
-| **3D Meshes** | Hunyuan 3D (self-hosted / Tencent Cloud / Atlas Cloud) |
-| **Audio/TTS** | GMI Cloud (Inworld TTS 1.5 Mini) |
+| **Image Generation** | OpenAI Images (`gpt-image-1.5`) |
+| **3D Meshes** | Tripo / Hunyuan (optional) |
+| **Audio/TTS** | OpenAI TTS (`gpt-4o-mini-tts`) |
 | **Web Search** | You.com API / Exa API |
-| **Embeddings** | Nebius (Qwen3-Embedding-8B, dim 4096) |
+| **Embeddings** | OpenAI-compatible embeddings (optional) / keyword fallback |
 | **Database** | SQLite (dev) / PostgreSQL + pgvector (prod) |
 | **Maps** | OpenStreetMap (Leaflet tiles + Nominatim geocoding) |
 | **Observability** | LangSmith (opt-in tracing per agent) |
@@ -317,7 +318,7 @@ erDiagram
 |-------|---------|-------------|
 | **courses** | Top-level container; holds generation config (`knobs` JSON) | `generating` → `outline_review` → `ready` / `failed` |
 | **lessons** | Individual lesson within a course, ordered by `ordinal` | `pending` → `generating` → `awaiting_review` → `ready` / `failed` |
-| **artifacts** | Versioned lesson output (HTML or A2UI JSON); never overwritten | `kind`: `html` or `a2ui` |
+| **artifacts** | Versioned lesson output; never overwritten. **Default kind is `html`** (A2UI lessons are opt-in) | `kind`: `html` (default) or `a2ui` |
 | **citations** | Research citations attached to a course | — |
 | **generation_runs** | Async progress tracking with stage timings | `running` → complete |
 
@@ -435,12 +436,16 @@ flowchart LR
 |-------|-------------|
 | **interpret** | Load course/lesson from DB, build lesson plan (`planner.build_lesson_plan`) |
 | **research** | Document-grounded → RAG context; else web search (You.com/Exa) |
-| **asset_plan** | Compute (viz lab) + 3D mesh generation (Hunyuan), routed by specialist |
-| **generate** | LLM authors the capsule HTML from prompts + research + plan |
+| **asset_plan** | Compute (viz lab) + optional 3D mesh generation, routed by specialist |
+| **generate** | LLM authors the capsule — **HTML section fan-out** by default (parallel sections streamed as `gen_fragment` SSE into GenerationTheater), then whole-document HTML if needed |
 | **post_process** | Security gate (`capsule/postprocess.py`) — validate, sanitize, inject bridge |
-| **persist** | Write versioned `Artifact`, inline compute/mesh, emit SSE progress 100% |
+| **persist** | Write versioned `Artifact` (`kind=html`), inline compute/mesh, emit SSE progress 100% |
 
 The repair loop retries `generate → post_process` up to `MAX_GEN_RETRIES` (2) times.
+
+**Lesson format (product default):** interactive HTML capsules with live streaming UX
+(`GEN_SECTION_FANOUT=1`, `GEN_SKELETON_STREAMING=1`). A2UI JSON lessons
+(`COURSEGEN_A2UI_LESSONS=1`) are experimental only — tutor/voice widgets still use A2UI.
 
 ### Deep Agent (Flag-Gated)
 
@@ -829,7 +834,14 @@ Identity verified via `event.source === iframe.contentWindow` (not origin — sa
 
 ## A2UI — Declarative Widget System
 
-A2UI (Agent-to-UI) is a trusted, theme-locked declarative component system. The LLM emits a JSON tree of typed nodes; the backend validates it; the frontend renders it from a fixed React registry. **No raw HTML ever reaches the DOM.**
+A2UI (Agent-to-UI) is a trusted, theme-locked declarative component system used by the
+**text tutor** and **voice instructor** (`render_ui` tool calls). The LLM emits a JSON tree
+of typed nodes; the backend validates it; the frontend renders it from a fixed React registry.
+**No raw HTML from those tools ever reaches the DOM.**
+
+Course chapters themselves are **not** A2UI by default — they are HTML capsules authored via
+section fan-out / whole-doc HTML and streamed with `gen_fragment`. Set
+`COURSEGEN_A2UI_LESSONS=1` only to experiment with A2UI-authored lessons.
 
 ### Node Types
 
@@ -850,9 +862,9 @@ A2UI (Agent-to-UI) is a trusted, theme-locked declarative component system. The 
 ### Validation Rules
 
 - **Max depth**: 6 levels
-- **Max nodes**: 60 per tree
+- **Max nodes**: 200 per tree (raised for multi-widget tutor surfaces)
 - **Props validation**: Each node type has a Pydantic model with strict field validation
-- **Alias tolerance**: Accepts common model variants (`content`→`text`, `items`→`steps`, etc.)
+- **Alias tolerance**: Accepts common model variants (`content`→`text`, `items`→`steps`, `type:"bar"`→`chart`, etc.)
 - **Fail-closed**: Invalid tree → `None` → falls back to text or `generate_ui`
 
 ### Example A2UI Tree
@@ -925,7 +937,7 @@ graph TD
 | Route | Component | Description |
 |-------|-----------|-------------|
 | `#` | `Landing` | Marketing page with waitlist signup |
-| `#auth` | `AuthPage` | InsForge sign-in/sign-up |
+| `#auth` | `AuthPage` | Clerk sign-in / sign-up |
 | `#studio` | `Dashboard` | Compact resume hero, course search/filter grid, and private responsive learning insights |
 | `#studio/course/{id}` | `Roadmap` | Chapter-grouped lesson list, outline review editor |
 | `#studio/course/{id}/lesson/{id}` | `Viewer` | Iframe + tutor + voice side-by-side |
@@ -1046,7 +1058,7 @@ All insight endpoints require authentication and scope reads/writes to the curre
 | `GET` | `/gen?prompt=&aspect=` | Generate image from prompt |
 | `GET` | `/image?query=&aspect=` | Retrieve a photo-style image |
 | `GET` | `/audio?prompt=&kind=` | Generate TTS audio |
-| `GET` | `/mesh?key=` | Serve a cached Hunyuan GLB mesh |
+| `GET` | `/mesh?key=` | Serve a cached GLB mesh |
 | `GET` | `/maps/geocode?q=` | Geocode a location (Nominatim) |
 | `GET` | `/maps/tiles/{z}/{x}/{y}.png` | OSM tile proxy |
 
@@ -1061,21 +1073,20 @@ All insight endpoints require authentication and scope reads/writes to the curre
 
 ## Authentication & Authorization
 
-### InsForge JWT Flow
+### Clerk JWT Flow
 
 ```mermaid
 sequenceDiagram
     participant U as User (Browser)
-    participant FE as Frontend (@insforge/sdk)
-    participant IF as InsForge API
+    participant FE as Frontend (@clerk/react)
+    participant CL as Clerk
     participant BE as Backend (FastAPI)
 
-    U->>FE: Sign in (email + password)
-    FE->>IF: Auth request
-    IF-->>FE: JWT (HS256, sub=user_id)
-    FE->>FE: Store token
+    U->>FE: Sign in
+    FE->>CL: Auth session
+    CL-->>FE: Session JWT (RS256)
     FE->>BE: API request + Authorization: Bearer {JWT}
-    BE->>BE: Verify JWT with INSFORGE_JWT_SECRET + extract sub
+    BE->>BE: Verify JWT via Clerk JWKS + extract sub / billing claims
     BE-->>FE: Response (scoped to user_id)
 ```
 
@@ -1083,8 +1094,10 @@ sequenceDiagram
 
 | Mode | Config | Behavior |
 |------|--------|----------|
-| **Production** | `INSFORGE_JWT_SECRET` (+ frontend `VITE_INSFORGE_*`) | JWT verified with shared HS256 secret |
-| **Development** | `AUTH_DISABLED=1` | All requests use `user_id="dev"` |
+| **Production** | `CLERK_JWT_ISSUER` (+ frontend `VITE_CLERK_PUBLISHABLE_KEY`) | JWT verified against Clerk JWKS |
+| **Development** | `AUTH_DISABLED=1` + `VITE_AUTH_DISABLED=1` | All requests use `user_id="dev"` (no Clerk required) |
+
+InsForge is used for **waitlist + file storage only**, not authentication.
 
 ### Token Delivery
 
@@ -1114,8 +1127,9 @@ same-origin when present. Waitlist and storage stay on InsForge.
 
 ### Progress & Real-time Updates
 
-- **SSE (Server-Sent Events)** — course generation progress streams to the frontend
-- **In-memory broker** (`core/progress.py`) — process-local pub/sub; last-event replay for late subscribers
+- **SSE (Server-Sent Events)** — course generation progress streams to the frontend (`generating`, `skeleton`, `gen_fragment`, …)
+- **GenerationTheater** — while a chapter authors, HTML fragments morph live in a sandboxed shell iframe
+- **In-memory broker** (`core/progress.py`) — process-local pub/sub; last-event replay for late subscribers (`gen_fragment` is transient / not replayed)
 - **WebSocket** — voice instructor bidirectional audio + control frames
 
 ### Observability
@@ -1138,12 +1152,12 @@ same-origin when present. Waitlist and storage stay on InsForge.
 
 | Service | Primary | Fallback |
 |---------|---------|----------|
-| **LLM** | Nebius Token Factory (GLM-5.2) | Any OpenAI-compatible endpoint |
-| **Image** | TokenRouter (Gemini Flash Lite) | GMI Cloud → SVG gradient placeholder |
-| **Audio** | GMI Cloud TTS | Silent WAV |
-| **3D Mesh** | Self-hosted Hunyuan → Tencent → Atlas | Procedural (no mesh) |
+| **LLM** | Anthropic Claude (`api.anthropic.com/v1`) | Any OpenAI-compatible endpoint via `LLM_*` |
+| **Image** | OpenAI Images (`gpt-image-1.5`) | SVG gradient placeholder |
+| **Audio** | OpenAI TTS | Silent WAV |
+| **3D Mesh** | Tripo / Hunyuan (optional) | Procedural (no mesh) |
 | **Search** | You.com | Exa |
-| **Embeddings** | Nebius (Qwen3-Embedding-8B) | Keyword fallback on SQLite |
+| **Embeddings** | Configured OpenAI-compatible embedder | Keyword fallback on SQLite |
 | **Voice** | OpenAI Realtime S2S | Feature disabled (button hidden) |
 
 ---
@@ -1154,52 +1168,65 @@ same-origin when present. Waitlist and storage stay on InsForge.
 
 - Python 3.11+
 - Node.js 18+
-- An LLM API key (Nebius Token Factory, OpenAI-compatible, etc.)
+- A Claude API key (or any OpenAI-compatible LLM key)
+- Optional: OpenAI key for images / TTS / voice
 
 ### Backend
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-pip install -e .
-
-# Copy and fill in API keys
+uv sync --extra documents --extra voice   # or: python -m venv .venv && pip install -e ".[documents,voice]"
 cp .env.example .env
-# Edit .env: set LLM_API_KEY (Claude key), optionally AUTH_DISABLED=1 for local demo
-# Default LLM is Anthropic OpenAI-compat: https://api.anthropic.com/v1
+# Edit .env:
+#   LLM_API_KEY=sk-ant-...          # Claude
+#   AUTH_DISABLED=1                 # local demo without Clerk
+#   SKIP_PROVIDER_VALIDATION=1      # skip startup key checks
+#   OPENAI_REALTIME_API_KEY=...     # also used for images/TTS if set
 
-# Start the server
-uvicorn app.main:app --reload --port 8077
+export SKIP_PROVIDER_VALIDATION=1
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8077
 ```
+
+Default LLM is Anthropic OpenAI-compat: `LLM_BASE_URL=https://api.anthropic.com/v1`,
+`LLM_MODEL=claude-sonnet-4-6`. Images use OpenAI (`IMAGE_PROVIDER=openai`, `gpt-image-1.5`).
 
 ### Frontend
 
 ```bash
 cd frontend
+cp .env.example .env.local
+# For local demo without Clerk:
+#   VITE_AUTH_DISABLED=1
 npm install
-npm run dev
+npm run dev -- --host 127.0.0.1 --port 5173
 ```
 
-Open http://localhost:5173 — Vite proxies API routes to `:8077`.
+Open http://127.0.0.1:5173 — Vite proxies API routes to `:8077`.
 
-### InsForge (Auth + Storage)
+### Auth (Clerk) + Storage (InsForge)
 
-Project: **TrailLearn** (`https://8xdj824y.us-east.insforge.app`)
+Production auth is **Clerk**. Pair frontend + backend:
 
-Frontend env (`frontend/.env`):
 ```bash
-VITE_INSFORGE_URL=https://8xdj824y.us-east.insforge.app
-VITE_INSFORGE_ANON_KEY=
+# frontend/.env.local
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
 # VITE_AUTH_DISABLED=1   # skip login for local demo
+
+# backend/.env
+CLERK_JWT_ISSUER=https://your-slug.clerk.accounts.dev
+# AUTH_DISABLED=1        # local demo
 ```
 
-Backend env (`backend/.env`):
+InsForge is optional (waitlist + document/mesh buckets):
+
 ```bash
-INSFORGE_BASE_URL=https://8xdj824y.us-east.insforge.app
-INSFORGE_API_KEY=ik_...          # storage / admin key
-INSFORGE_JWT_SECRET=             # npx @insforge/cli secrets get JWT_SECRET
-# AUTH_DISABLED=1                # for local demo
+# frontend/.env.local
+VITE_INSFORGE_URL=
+VITE_INSFORGE_ANON_KEY=
+
+# backend/.env
+INSFORGE_BASE_URL=
+INSFORGE_API_KEY=
 ```
 
 ---
@@ -1268,7 +1295,7 @@ hituto/
 │   │   ├── core/              # Infrastructure
 │   │   │   ├── config.py      # Pydantic Settings (200+ config fields)
 │   │   │   ├── db.py          # Engine, SessionLocal, init_db
-│   │   │   ├── auth.py        # InsForge JWT verification
+│   │   │   ├── auth.py        # Clerk JWKS JWT verification
 │   │   │   ├── progress.py    # In-memory SSE pub/sub broker
 │   │   │   ├── middleware.py  # CORS
 │   │   │   └── tracing.py     # LangSmith integration
@@ -1285,7 +1312,7 @@ hituto/
 │   │   ├── api.ts             # Typed API client (fetch + SSE + WebSocket)
 │   │   ├── routing.ts         # Hash-based SPA routing
 │   │   ├── components/        # Shared UI components
-│   │   │   ├── A2UIRenderer.tsx       # Recursive A2UI tree → React
+│   │   │   ├── A2UIRenderer.tsx       # Recursive A2UI tree → React (tutor/voice)
 │   │   │   ├── LessonTutorChat.tsx    # Streaming chat + widgets
 │   │   │   ├── VoiceInstructor.tsx    # Voice session UI
 │   │   │   ├── QuizComponent.tsx      # Multi-step quiz
@@ -1293,19 +1320,19 @@ hituto/
 │   │   │   └── GameComponent.tsx      # Mini-game renderer
 │   │   ├── features/          # Page-level features
 │   │   │   ├── landing/       # Landing page + waitlist
-│   │   │   ├── auth/          # Sign-in / sign-up
+│   │   │   ├── auth/          # Clerk sign-in / sign-up
 │   │   │   ├── courses/       # Dashboard + create modal
 │   │   │   ├── insights/      # Snapshot sidebar, detailed report, privacy settings
 │   │   │   ├── roadmap/       # Course roadmap + outline editor
-│   │   │   └── lesson/        # Viewer + shared view
-│   │   ├── context/           # React context (AuthContext)
+│   │   │   └── lesson/        # Viewer + GenerationTheater + shared view
+│   │   ├── context/           # React context (AuthContext / DevAuthProvider)
 │   │   └── lib/               # Utilities
-│   │       ├── insforge.ts    # InsForge SDK init
+│   │       ├── insforge.ts    # InsForge SDK init (waitlist/storage)
 │   │       ├── learningEvents.ts # Insight event queue + active-time lifecycle
 │   │       ├── lessonBridge.ts # Host-side bridge protocol
 │   │       └── partialJson.ts  # Streaming JSON parser
 │   ├── package.json
-│   └── vite.config.ts
+│   └── vite.config.ts         # Dev proxy → http://127.0.0.1:8077
 ├── .github/workflows/ci.yml   # GitHub Actions CI
 ├── specs/insights/             # Requirements, design, evidence rules, implementation tasks
 ├── Makefile                   # Dev commands
@@ -1330,15 +1357,18 @@ hituto/
 | Variable | Feature | Default |
 |----------|---------|---------|
 | `VOICE_ENABLED` | Enable voice instructor | `false` |
-| `OPENAI_REALTIME_API_KEY` | Voice: OpenAI Realtime key | (disabled) |
-| `TOKENROUTER_API_KEY` | Image generation | (SVG fallback) |
-| `GMI_API_KEY` | Audio TTS + image fallback | (silent WAV) |
+| `OPENAI_REALTIME_API_KEY` | Voice + default OpenAI media key | (disabled) |
+| `IMAGE_PROVIDER` | Image backend (`openai`) | `openai` |
+| `OPENAI_IMAGE_MODEL` | Image model | `gpt-image-1.5` |
+| `OPENAI_TTS_MODEL` | Lesson TTS model | `gpt-4o-mini-tts` |
 | `YOUCOM_API_KEY` | Web search (research) | (search disabled) |
 | `EMBEDDING_API_KEY` | Vector embeddings for RAG | (keyword fallback) |
-| `INSFORGE_API_KEY` | Remote storage | (local disk) |
-| `INSFORGE_JWT_SECRET` | Auth JWT verification | (auth disabled / local) |
+| `CLERK_JWT_ISSUER` | Clerk issuer for JWKS auth | (use `AUTH_DISABLED`) |
+| `INSFORGE_API_KEY` | Remote storage / waitlist admin | (local disk) |
 | `DEEP_AGENTS_ENABLED` | Enable Deep Agent path | `false` |
-| `COURSEGEN_A2UI_LESSONS` | Emit A2UI JSON lessons | `false` |
+| `COURSEGEN_A2UI_LESSONS` | A2UI-authored **course** lessons (off — HTML streaming is default) | `false` |
+| `GEN_SECTION_FANOUT` | Parallel HTML section authoring + live `gen_fragment` | `true` |
+| `GEN_SKELETON_STREAMING` | GenerationTheater skeleton while chapters generate | `true` |
 | `INSIGHTS_ENABLED` | Enable private learning-event collection and summaries | `true` |
 | `INSIGHTS_AGENT_ENABLED` | Enable optional evidence-grounded report wording | `true` |
 | `INSIGHTS_RAW_EVENT_RETENTION_DAYS` | Raw learning-event retention (7–365 days) | `90` |
