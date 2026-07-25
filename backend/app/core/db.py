@@ -36,7 +36,7 @@ def init_db() -> None:
 def _ensure_added_columns() -> None:
     """Additive nullable columns for schemas create_all will not ALTER.
 
-    SQLite (dev) and Postgres (Render) both need this when Alembic lags the ORM.
+    SQLite (dev) and Postgres (prod) both need this when Alembic lags the ORM.
     Prefer a real Alembic revision for production; this is a fail-open safety net.
     """
     is_sqlite = settings.database_url.startswith("sqlite")

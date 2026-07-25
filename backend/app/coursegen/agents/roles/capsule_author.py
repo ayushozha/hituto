@@ -107,7 +107,7 @@ def _system_prompt() -> str:
 
 
 def _fallback_tree(plan: dict) -> dict[str, Any]:
-    """Deterministic A2UI tree when the LLM fails (offline / parse errors)."""
+    """Deterministic interactive A2UI tree when the LLM fails (offline / parse errors)."""
     title = plan.get("title") or "Lesson"
     objective = plan.get("subtitle") or plan.get("objective") or f"Learn {title}."
     sections = plan.get("sections") or []
@@ -115,11 +115,48 @@ def _fallback_tree(plan: dict) -> dict[str, Any]:
     for sec in sections[:6]:
         st = sec.get("title") or "Section"
         body = re.sub(r"<[^>]+>", "", sec.get("body") or sec.get("objective") or "")
+        blurb = (body.strip() or f"Key idea for {st}.")[:280]
         children.append({"type": "heading", "props": {"text": st, "level": 2}, "children": []})
-        if body.strip():
-            children.append(
-                {"type": "text", "props": {"text": body.strip()[:800]}, "children": []}
-            )
+        children.append(
+            {"type": "callout", "props": {"text": blurb, "variant": "info"}, "children": []}
+        )
+        children.append(
+            {
+                "type": "steps",
+                "props": {
+                    "steps": [
+                        {"title": "Notice", "detail": f"What stands out about {st}?"},
+                        {"title": "Connect", "detail": "Link this to what you already know."},
+                        {"title": "Check", "detail": "Answer the quick quiz."},
+                    ]
+                },
+                "children": [],
+            }
+        )
+        children.append(
+            {
+                "type": "quiz",
+                "props": {
+                    "topic": st,
+                    "questions": [
+                        {
+                            "type": "mcq",
+                            "title": "Quick check",
+                            "prompt": f"What is the main takeaway of “{st}”?",
+                            "options": [
+                                blurb[:80] or "The core idea of this section",
+                                "An unrelated fact",
+                                "None of the above",
+                            ],
+                            "correctAnswer": "0",
+                            "explanation": blurb or "Re-read the callout.",
+                            "hints": ["Skim the callout."],
+                        }
+                    ],
+                },
+                "children": [],
+            }
+        )
     if not children:
         children.append(
             {
@@ -127,6 +164,26 @@ def _fallback_tree(plan: dict) -> dict[str, Any]:
                 "props": {
                     "text": "Explore the ideas above, then check your understanding with the tutor.",
                     "variant": "info",
+                },
+                "children": [],
+            }
+        )
+        children.append(
+            {
+                "type": "quiz",
+                "props": {
+                    "topic": title,
+                    "questions": [
+                        {
+                            "type": "mcq",
+                            "title": "Check",
+                            "prompt": f"Can you explain “{title}” in one sentence?",
+                            "options": ["Yes", "Not yet", "I need a hint"],
+                            "correctAnswer": "0",
+                            "explanation": "Teaching it back is the best check.",
+                            "hints": ["Start with the objective."],
+                        }
+                    ],
                 },
                 "children": [],
             }
@@ -156,17 +213,27 @@ async def author_a2ui_lesson(plan: dict) -> dict[str, Any] | None:
             f"Difficulty: {plan.get('difficulty') or 'intermediate'}\n"
             f"Sections JSON: {json.dumps(plan.get('sections') or [])[:4000]}\n"
             f"Facts: {json.dumps(plan.get('facts') or [])[:1500]}\n"
-            "Build one focused A2UI surface for this lesson. The host already renders the lesson "
-            "title and objective; start directly with the first section heading and do not repeat "
-            "the lesson title as a node."
+            "Build one focused INTERACTIVE A2UI surface for this lesson. "
+            "REQUIRED: each section must include quiz OR slider OR chart OR steps OR diagram — "
+            "never heading+text essays. The host already renders the lesson title and objective; "
+            "start directly with the first section heading and do not repeat the lesson title."
         )
         raw = await llm.generate_html(_system_prompt(), user)
         data = json.loads(_clean(raw))
+        root = data.get("root") or data
+        # Soft-guard: essay-only trees get a quiz injected before normalize.
+        if isinstance(root, dict):
+            from ...a2ui_sections import _enrich_if_text_only, _is_interactive
+
+            title = str(data.get("title") or plan.get("title") or "Lesson")
+            root = _enrich_if_text_only(root, title)
+            if not _is_interactive(root):
+                raise ValueError("A2UI lesson is text-only")
         normalized = normalize_render_ui(
             {
                 "title": data.get("title") or plan.get("title") or "Lesson",
                 "intent": data.get("intent") or plan.get("subtitle") or "",
-                "root": data.get("root") or data,
+                "root": root,
             }
         )
         if normalized:

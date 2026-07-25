@@ -1097,18 +1097,20 @@ sequenceDiagram
 
 ## Deployment & Infrastructure
 
-### Render (backend)
+### Backend (API)
 
-Native Python on [Render](https://render.com) — no Docker. Blueprint: root [`render.yaml`](render.yaml).
+Run FastAPI with Postgres (prod) or SQLite (dev). There is no hosted deploy blueprint in
+this repo — point the frontend at whatever host you use via `VITE_API_BASE_URL`.
 
 | Piece | Detail |
 |-------|--------|
-| **Web** | `hituto-api` — `rootDir: backend`, `uv sync`, `bash scripts/render_start.sh` |
-| **DB** | `hituto-db` — Postgres; `DATABASE_URL` wired via Blueprint |
+| **App** | `uv sync --all-extras` then `uvicorn app.main:app --port 8077` |
+| **DB** | Postgres via `DATABASE_URL` + `VECTOR_STORE=pgvector`, or SQLite for local |
 | **Health** | `GET /health` |
-| **Start** | Postgres → `alembic upgrade head`; SQLite demo → optional seed dump |
+| **Migrate** | Postgres → `alembic upgrade head`; SQLite → `init_db()` / optional seed dump |
 
-Deploy: connect the GitHub repo as a Blueprint (or push and sync `render.yaml`). Set dashboard secrets marked `sync: false` (`FRONTEND_ORIGIN`, `LLM_*`, optional InsForge storage). Waitlist stays on InsForge (`@insforge/sdk` → `waitlist` table); this service is API-only.
+`app/main.py` can also mount a built SPA from `backend/static` (override with `SPA_DIST`)
+same-origin when present. Waitlist and storage stay on InsForge.
 
 ### Progress & Real-time Updates
 
@@ -1164,7 +1166,8 @@ pip install -e .
 
 # Copy and fill in API keys
 cp .env.example .env
-# Edit .env: set LLM_API_KEY, optionally AUTH_DISABLED=1 for local demo
+# Edit .env: set LLM_API_KEY (Claude key), optionally AUTH_DISABLED=1 for local demo
+# Default LLM is Anthropic OpenAI-compat: https://api.anthropic.com/v1
 
 # Start the server
 uvicorn app.main:app --reload --port 8077
@@ -1317,9 +1320,9 @@ hituto/
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `LLM_API_KEY` | API key for the LLM provider | `sk-...` |
-| `LLM_BASE_URL` | OpenAI-compatible endpoint | `https://api.tokenfactory.nebius.com/v1` |
-| `LLM_MODEL` | Model name | `zai-org/GLM-5.2` |
+| `LLM_API_KEY` | Claude API key (or set `ANTHROPIC_API_KEY`) | `sk-ant-...` |
+| `LLM_BASE_URL` | OpenAI-compatible endpoint (Anthropic default) | `https://api.anthropic.com/v1` |
+| `LLM_MODEL` | Claude model name | `claude-sonnet-4-6` |
 | `AUTH_DISABLED` | Skip JWT auth for local dev | `1` |
 
 ### Optional (Feature Activation)

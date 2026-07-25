@@ -55,7 +55,9 @@ class QuizStep(BaseModel):
 
 
 MAX_UI_DEPTH = 6
-MAX_UI_NODES = 60
+# Multi-section course lessons assemble several trees under one root; 60 was
+# rejecting valid interactive chapters that only looked large after stitching.
+MAX_UI_NODES = 200
 
 # A2UI vocabulary: layout + prose + math + steps + quiz (v1) plus table + chart + slider + diagram
 # (v2, all hand-drawn SVG / vanilla React — no chart/graph lib, so nothing new for the CSP). Anything
@@ -152,7 +154,9 @@ class ChartProps(_PropsBase):
     `series` is one bar group / line."""
     kind: Literal["bar", "line"] = Field(default="bar", validation_alias=AliasChoices("kind", "type", "variant"))
     labels: List[str] = Field(default_factory=list, validation_alias=AliasChoices("labels", "categories", "x"))
-    series: List[ChartSeries] = Field(validation_alias=AliasChoices("series", "datasets"))
+    series: List[ChartSeries] = Field(
+        default_factory=list, validation_alias=AliasChoices("series", "datasets")
+    )
     caption: str = Field(default="", validation_alias=AliasChoices("caption", "title"))
 
 
@@ -377,6 +381,14 @@ class UiNode(BaseModel):
         if not isinstance(data, dict):
             return data
         out = dict(data)
+        # Models often emit type:"bar"|"line" instead of type:"chart" + props.kind.
+        raw_type = str(out.get("type") or "").lower().strip()
+        if raw_type in ("bar", "line", "barchart", "linechart", "bar-chart", "line-chart"):
+            props = dict(out.get("props") or {})
+            if "kind" not in props:
+                props["kind"] = "line" if "line" in raw_type else "bar"
+            out["type"] = "chart"
+            out["props"] = props
         props = dict(out.get("props") or {})
         # Common flat keys models emit next to `type` (OpenGenerativeUI / loose JSON style).
         for key in (

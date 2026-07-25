@@ -23,20 +23,14 @@ const AuthContext = createContext<AuthContextValue>({
 /** Local hacking: VITE_AUTH_DISABLED=1 skips Clerk and uses a synthetic "dev" user. */
 const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === "1";
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, userId, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const { signOut: clerkSignOut } = useClerk();
-  const [user, setUser] = useState<AuthUser | null>(AUTH_DISABLED ? { id: "dev", email: "dev@local" } : null);
-  const [loading, setLoading] = useState(!AUTH_DISABLED);
+  const [user, setUser] = useState<AuthUser | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (AUTH_DISABLED) {
-      registerTokenGetter(null);
-      setLoading(false);
-      return;
-    }
-
     if (!isLoaded) {
       setLoading(true);
       return;
@@ -58,10 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [isLoaded, isSignedIn, userId, getToken, clerkUser]);
 
   async function signOut() {
-    if (AUTH_DISABLED) {
-      setUser({ id: "dev", email: "dev@local" });
-      return;
-    }
     await clerkSignOut();
     registerTokenGetter(null);
     setUser(null);
@@ -72,6 +62,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
+}
+
+function DevAuthProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    registerTokenGetter(null);
+  }, []);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user: { id: "dev", email: "dev@local" },
+        loading: false,
+        signOut: async () => {},
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // Clerk hooks must only run under <ClerkProvider>. When auth is disabled we skip
+  // Clerk entirely so the app boots without a publishable key.
+  if (AUTH_DISABLED) {
+    return <DevAuthProvider>{children}</DevAuthProvider>;
+  }
+  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
 }
 
 export function useAuth() {

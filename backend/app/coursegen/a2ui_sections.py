@@ -1,7 +1,7 @@
 """Per-section A2UI authoring with progressive SSE frames (fast_gen Mode A).
 
 Structured lessons stream validated UiNode trees into the host ``A2UIRenderer`` instead of
-skipping the generation theater. Fail-closed: bad section → deterministic text fallback;
+skipping the generation theater. Fail-closed: bad section → interactive quiz/steps fallback;
 all sections bad → None (caller falls back to whole-doc A2UI or HTML).
 """
 from __future__ import annotations
@@ -30,24 +30,61 @@ Never put text/title/steps/questions on the node itself — always inside props.
 Types + required props:
 - stack   props: {direction?: "vertical"|"horizontal", gap?: "sm"|"md"|"lg"} + children
 - heading props: {text: str, level?: 1-3}
-- text    props: {text: str}
+- text    props: {text: str}   (SHORT — max ~2 sentences; never a wall of prose)
 - callout props: {text: str, variant?: "info"|"warning"|"success"|"danger"}
 - math    props: {latex: str, display?: bool}
 - steps   props: {steps: [{title: str, detail?: str}]}
-- quiz    props: {topic?: str, questions: [{type, title, prompt, explanation, options?, correctAnswer, hints?}]}
+- quiz    props: {topic?: str, questions: [{type:"mcq", title, prompt, explanation, options:[str], correctAnswer:"0"|"1"|..., hints?:[str]}]}
 - table   props: {headers: [str], rows: [[str]], caption?: str}
 - chart   props: {kind?: "bar"|"line", labels: [str], series: [{label?: str, values: [num]}]}
 - slider  props: {label: str, min?, max?, step?, value?, unit?, readouts?: [{label?, expr, unit?}]}
 - diagram props: {nodes: [{id, label?}], edges: [{from, to, label?}], direction?: "TB"|"LR"}
-- map     props: {title?, center?: {lat,lng}, listings?: [{id?,lat,lng,label?,beds?,baths?,sqft?,list_price?}], prediction?: {...}}
+- map     props: {title?, center?: {lat,lng}, listings?: [...], prediction?: {...}}
 - embed   props: {title: str, slot_id?, caption?}  (do NOT invent html — server fills gated HTML)
 
-Rules:
-- root is usually a vertical stack; include a heading with the section title.
-- Prefer math/steps/quiz/chart/slider/diagram over decorative filler.
-- No HTML. No markdown fences. No lesson-level title that repeats the course chrome.
-- Keep the tree small (depth ≤ 6, ≤ 60 nodes total for this section).
+HARD RULES (fail if broken):
+1. root MUST be a vertical stack with a heading (section title).
+2. MUST include AT LEAST ONE interactive or visual widget from:
+   quiz | slider | chart | steps | diagram | math | table | callout
+3. NEVER ship heading+text only. Essays belong in textbooks — this is an interactive lesson surface.
+4. Keep trees SMALL: depth ≤ 6, ≤ 40 nodes. Prefer 1 quiz (2–3 MCQs) OR 1 slider OR 1 chart OR 1 steps list.
+5. chart MUST be type "chart" with props.labels AND props.series — never type "bar"/"line" as the node type.
+6. No HTML. No markdown fences. No giant paragraphs.
+
+Good minimal shape example:
+{"title":"Why blue sky?",
+ "root":{"type":"stack","props":{"direction":"vertical","gap":"md"},"children":[
+   {"type":"heading","props":{"text":"Why blue sky?","level":2},"children":[]},
+   {"type":"callout","props":{"text":"Shorter wavelengths scatter more.","variant":"info"},"children":[]},
+   {"type":"chart","props":{"kind":"bar","labels":["violet","blue","green","red"],
+     "series":[{"label":"scatter","values":[1.0,0.7,0.3,0.1]}]},"children":[]},
+   {"type":"quiz","props":{"topic":"Scatter check","questions":[{
+     "type":"mcq","title":"Q1","prompt":"Which color scatters most?",
+     "options":["Red","Green","Blue"],"correctAnswer":"2",
+     "explanation":"Blue/violet scatter most (1/λ⁴).","hints":["Think wavelength."]}]},"children":[]}
+ ]}}
 """
+
+
+_INTERACTIVE_TYPES = frozenset(
+    {"quiz", "slider", "chart", "steps", "diagram", "math", "table", "callout", "map", "embed"}
+)
+
+
+def _collect_types(node: dict | None) -> set[str]:
+    found: set[str] = set()
+    if not isinstance(node, dict):
+        return found
+    t = node.get("type")
+    if isinstance(t, str):
+        found.add(t)
+    for child in node.get("children") or []:
+        found |= _collect_types(child if isinstance(child, dict) else None)
+    return found
+
+
+def _is_interactive(root: dict | None) -> bool:
+    return bool(_collect_types(root) & _INTERACTIVE_TYPES)
 
 
 def _slug(section: dict, index: int) -> str:
@@ -65,16 +102,97 @@ def _fallback_section(plan: dict, index: int) -> dict[str, Any]:
     section = (plan.get("sections") or [])[index]
     title = str(section.get("title") or f"Part {index + 1}")
     body = re.sub(r"<[^>]+>", "", section.get("body") or section.get("objective") or "")
+    blurb = (body.strip() or f"Key idea for {title}.")[:280]
     children: list[dict] = [
         {"type": "heading", "props": {"text": title, "level": 2}, "children": []},
+        {
+            "type": "callout",
+            "props": {"text": blurb, "variant": "info"},
+            "children": [],
+        },
+        {
+            "type": "steps",
+            "props": {
+                "steps": [
+                    {"title": "Notice", "detail": f"What stands out about {title}?"},
+                    {"title": "Connect", "detail": "Link this idea to what you already know."},
+                    {"title": "Check", "detail": "Answer the quick quiz below."},
+                ]
+            },
+            "children": [],
+        },
+        {
+            "type": "quiz",
+            "props": {
+                "topic": title,
+                "questions": [
+                    {
+                        "type": "mcq",
+                        "title": "Quick check",
+                        "prompt": f"What is the main takeaway of “{title}”?",
+                        "options": [
+                            blurb[:80] or "The core idea of this section",
+                            "An unrelated fact",
+                            "None of the above",
+                        ],
+                        "correctAnswer": "0",
+                        "explanation": blurb or "Re-read the callout above.",
+                        "hints": ["Skim the callout."],
+                    }
+                ],
+            },
+            "children": [],
+        },
     ]
-    if body.strip():
-        children.append(
-            {"type": "text", "props": {"text": body.strip()[:800]}, "children": []}
-        )
     return {
         "type": "stack",
         "props": {"direction": "vertical", "gap": "md", "sectionId": _slug(section, index)},
+        "children": children,
+    }
+
+
+def _enrich_if_text_only(root: dict, title: str) -> dict:
+    """If the LLM returned essay-only nodes, inject interactive widgets."""
+    if _is_interactive(root):
+        return root
+    children = list(root.get("children") or []) if root.get("type") == "stack" else [root]
+    children.append(
+        {
+            "type": "callout",
+            "props": {
+                "text": f"Try the controls below to lock in “{title}”.",
+                "variant": "info",
+            },
+            "children": [],
+        }
+    )
+    children.append(
+        {
+            "type": "quiz",
+            "props": {
+                "topic": title,
+                "questions": [
+                    {
+                        "type": "mcq",
+                        "title": "Check",
+                        "prompt": f"Which best matches “{title}”?",
+                        "options": [
+                            "I can explain the key idea",
+                            "I only memorized a phrase",
+                            "I am unsure",
+                        ],
+                        "correctAnswer": "0",
+                        "explanation": "Interactive practice beats passive reading.",
+                        "hints": ["Skim the section once more."],
+                    }
+                ],
+            },
+            "children": [],
+        }
+    )
+    return {
+        "type": "stack",
+        "props": {"direction": "vertical", "gap": "md"},
         "children": children,
     }
 
@@ -147,7 +265,9 @@ async def author_a2ui_sections(
             f"Objective: {section.get('objective') or ''}\n"
             f"Draft: {section.get('body') or ''}\n"
             f"Facts: {json.dumps(plan.get('facts') or [])[:800]}\n"
-            "Emit JSON {title, root} for THIS section only."
+            "Emit JSON {title, root} for THIS section only.\n"
+            "REQUIRED: include quiz OR slider OR chart OR steps OR diagram "
+            "(not heading/text alone)."
         )
         async with sem:
             for _try in (1, 2):
@@ -155,6 +275,8 @@ async def author_a2ui_sections(
                     raw = await llm.generate_html(_SECTION_SYSTEM, user)
                     data = json.loads(_clean(raw))
                     root = data.get("root") or data
+                    if isinstance(root, dict):
+                        root = _enrich_if_text_only(root, title)
                     normalized = normalize_render_ui(
                         {
                             "title": data.get("title") or title,
@@ -164,6 +286,8 @@ async def author_a2ui_sections(
                     )
                     if normalized and normalized.get("root"):
                         tree = normalized["root"]
+                        if not _is_interactive(tree):
+                            raise ValueError("section is text-only; need interactive widgets")
                         await broker.publish(
                             course_id,
                             ProgressEvent(
@@ -184,7 +308,10 @@ async def author_a2ui_sections(
                         return slug, title, tree, True
                 except Exception as exc:  # noqa: BLE001
                     logger.warning("A2UI section %s failed (try %s): %s", slug, _try, exc)
-                    user += "\n\nREPAIR: emit ONLY valid JSON {title, root} with A2UI node types."
+                    user += (
+                        "\n\nREPAIR: emit ONLY valid JSON {title, root}. "
+                        "MUST include quiz/slider/chart/steps — never heading+text only."
+                    )
         tree = _fallback_section(plan, index)
         await broker.publish(
             course_id,

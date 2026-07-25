@@ -145,7 +145,14 @@ export function Viewer({ course, initialLesson, onBack, onCourseChanged }: Viewe
     ]);
     setVideoGuide(guide);
     setVersions(vs);
-    setVersion((prev) => prev ?? vs[0]?.version);
+    const latest = vs[0]?.version;
+    // Prefer the newest artifact when one appears (regenerate / late mesh). Keep an
+    // explicit older selection until a higher version lands.
+    setVersion((prev) => {
+      if (latest == null) return prev;
+      if (prev == null || latest > prev) return latest;
+      return prev;
+    });
   }
 
   useEffect(() => {

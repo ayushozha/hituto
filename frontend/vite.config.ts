@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 // artifact iframe (which uses relative /gen, /image, ...) work same-origin in dev.
 // Auth-disabled e2e API (AUTH_DISABLED=1). Use IPv4 loopback — uvicorn binds 127.0.0.1,
 // and `localhost` can resolve to ::1 first and break the Vite proxy.
-const backend = "http://127.0.0.1:8078";
+const backend = "http://127.0.0.1:8077";
 
 export default defineConfig({
   plugins: [react()],

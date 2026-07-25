@@ -9,7 +9,7 @@ import os
 from ..core.config import Settings, get_settings
 from .embeddings import OpenAICompatEmbedding
 from .llm import OpenAICompatLLM
-from .media import get_image_media, resolve_image_provider
+from .media import get_image_media
 from .mesh import resolve_mesh_provider
 from .search import ExaSearch, YouComSearch
 
@@ -37,10 +37,9 @@ def validate_provider_config(settings: Settings | None = None) -> None:
             errors.append("YOUCOM_API_KEY")
     else:
         errors.append(f"SEARCH_PROVIDER must be exa or youcom (got {s.search_provider!r})")
-    if not s.gmi_api_key.strip():
-        errors.append("GMI_API_KEY")  # audio TTS always runs through GMI
-    if resolve_image_provider(s) == "tokenrouter" and not s.tokenrouter_api_key.strip():
-        errors.append("TOKENROUTER_API_KEY")
+    image_key = (s.openai_image_api_key or s.openai_realtime_api_key or "").strip()
+    if not image_key:
+        errors.append("OPENAI_IMAGE_API_KEY (or OPENAI_API_KEY / OPENAI_REALTIME_API_KEY)")
     if s.vector_store == "pgvector" and not s.embedding_api_key.strip():
         errors.append("EMBEDDING_API_KEY (required when VECTOR_STORE=pgvector)")
 
@@ -138,9 +137,8 @@ def get_search():
 
 def get_media():
     s = get_settings()
-    _require(s.gmi_api_key, "GMI_API_KEY")  # audio TTS always runs through GMI
-    if resolve_image_provider(s) == "tokenrouter":
-        _require(s.tokenrouter_api_key, "TOKENROUTER_API_KEY")
+    image_key = (s.openai_image_api_key or s.openai_realtime_api_key or "").strip()
+    _require(image_key, "OPENAI_IMAGE_API_KEY / OPENAI_API_KEY / OPENAI_REALTIME_API_KEY")
     return get_image_media(s)
 
 

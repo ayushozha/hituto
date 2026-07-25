@@ -25,16 +25,16 @@ class Settings(BaseSettings):
     )
 
     # --- generation model (single OpenAI-compatible client) ---
-    # Any non-"stub" value routes to the OpenAI-compatible client below; the
-    # specific backend (GMI, Nebius, …) is selected purely by base URL + key +
-    # model, so swapping providers never needs a code change. The GMI_*/NEBIUS_*
-    # aliases keep older env files working unchanged.
+    # Default: Anthropic's OpenAI-compatible endpoint
+    # (https://platform.claude.com/docs/en/cli-sdks-libraries/libraries/openai-sdk).
+    # Any OpenAI-compatible backend works — swap via base URL + key + model.
+    # GMI_*/NEBIUS_* aliases keep older env files working unchanged.
     llm_provider: str = Field(
         default="openai",
         validation_alias=AliasChoices("LLM_PROVIDER", "PROVIDER_LLM"),
     )  # openai-compatible live client
     llm_base_url: str = Field(
-        default="https://api.tokenfactory.nebius.com/v1",
+        default="https://api.anthropic.com/v1",
         validation_alias=AliasChoices(
             "LLM_BASE_URL", "GMI_BASE_URL", "GMI_API_BASE_URL",
             "NEBIUS_BASE_URL", "NEBIUS_API_BASE_URL",
@@ -42,10 +42,12 @@ class Settings(BaseSettings):
     )
     llm_api_key: str = Field(
         default="",
-        validation_alias=AliasChoices("LLM_API_KEY", "GMI_API_KEY", "NEBIUS_API_KEY"),
+        validation_alias=AliasChoices(
+            "LLM_API_KEY", "ANTHROPIC_API_KEY", "GMI_API_KEY", "NEBIUS_API_KEY",
+        ),
     )
     llm_model: str = Field(
-        default="z-ai/glm-5.2-free",
+        default="claude-sonnet-4-6",
         validation_alias=AliasChoices("LLM_MODEL", "GMI_MODEL", "NEBIUS_CHAT_MODEL"),
     )
     llm_max_tokens: int = Field(
@@ -122,42 +124,61 @@ class Settings(BaseSettings):
         default=60, validation_alias="INSIGHTS_AGENT_REFRESH_MINUTES", ge=5, le=1440
     )
 
-    # --- GMI Cloud media (audio always; image fallback) — async request-queue API,
-    # NOT OpenAI-compatible, so it stays its own integration. Reuses GMI_API_KEY. ---
-    gmi_api_key: str = ""
-    gmi_media_base_url: str = Field(
-        default="https://console.gmicloud.ai/api/v1/ie/requestqueue/apikey/requests",
-        validation_alias=AliasChoices("GMI_MEDIA_BASE_URL"),
+    # --- OpenAI media (images + lesson TTS). Reuses OPENAI_API_KEY /
+    # OPENAI_REALTIME_API_KEY when OPENAI_IMAGE_API_KEY is unset. ---
+    openai_image_api_key: str = Field(
+        default="",
+        validation_alias=AliasChoices("OPENAI_IMAGE_API_KEY", "OPENAI_API_KEY"),
     )
-    gmi_image_model: str = Field(
-        # Request-queue model id — NOT the OpenAI-compat "gpt-image-2".
-        default="gpt-image-2-generate",
-        validation_alias=AliasChoices("GMI_IMAGE_MODEL"),
+    openai_image_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        validation_alias=AliasChoices("OPENAI_IMAGE_BASE_URL", "OPENAI_BASE_URL"),
     )
-    gmi_tts_model: str = "inworld-tts-1.5-mini"
-
-    # --- TokenRouter image generation (Gemini-style generateContent) — preferred
-    # image backend; audio stays on GMI (no TokenRouter TTS recipe yet). ---
+    openai_image_model: str = Field(
+        default="gpt-image-1.5",
+        validation_alias=AliasChoices("OPENAI_IMAGE_MODEL"),
+    )
+    openai_image_quality: str = Field(
+        default="medium",
+        validation_alias=AliasChoices("OPENAI_IMAGE_QUALITY"),
+    )
+    openai_tts_model: str = Field(
+        default="gpt-4o-mini-tts",
+        validation_alias=AliasChoices("OPENAI_TTS_MODEL"),
+    )
+    openai_tts_voice: str = Field(
+        default="alloy",
+        validation_alias=AliasChoices("OPENAI_TTS_VOICE"),
+    )
     image_provider: str = Field(
-        default="auto",
+        default="openai",
         validation_alias=AliasChoices("IMAGE_PROVIDER"),
-    )  # auto | tokenrouter | gmi — auto prefers tokenrouter when its key is set
-    tokenrouter_api_key: str = Field(
-        default="", validation_alias=AliasChoices("TOKENROUTER_API_KEY")
-    )
-    tokenrouter_base_url: str = Field(
-        default="https://api.tokenrouter.com/v1beta/models",
-        validation_alias=AliasChoices("TOKENROUTER_BASE_URL"),
-    )
-    tokenrouter_image_model: str = Field(
-        default="bytedance-seed/seedream-5.0-pro",
-        validation_alias=AliasChoices("TOKENROUTER_IMAGE_MODEL"),
-    )
+    )  # openai only (legacy tokenrouter/gmi ignored)
     image_timeout_seconds: float = Field(
         default=300.0,
         validation_alias=AliasChoices("IMAGE_TIMEOUT_SECONDS"),
         ge=30.0,
         le=900.0,
+    )
+
+    # Legacy GMI / TokenRouter fields kept as unused stubs so old .env files still load.
+    gmi_api_key: str = ""
+    gmi_media_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("GMI_MEDIA_BASE_URL"),
+    )
+    gmi_image_model: str = Field(default="", validation_alias=AliasChoices("GMI_IMAGE_MODEL"))
+    gmi_tts_model: str = ""
+    tokenrouter_api_key: str = Field(
+        default="", validation_alias=AliasChoices("TOKENROUTER_API_KEY")
+    )
+    tokenrouter_base_url: str = Field(
+        default="",
+        validation_alias=AliasChoices("TOKENROUTER_BASE_URL"),
+    )
+    tokenrouter_image_model: str = Field(
+        default="",
+        validation_alias=AliasChoices("TOKENROUTER_IMAGE_MODEL"),
     )
 
     # --- 3D mesh: Pixal3D / self-hosted Hunyuan / Tencent / GMI / Atlas ---
@@ -360,10 +381,9 @@ class Settings(BaseSettings):
     max_outline_revisions: int = Field(
         default=5, validation_alias=AliasChoices("MAX_OUTLINE_REVISIONS")
     )
-    # A2UI JSON lessons for eligible archetypes (explainer/narrative/tool).
-    # Default off — HTML section fan-out remains the page author path. Set
-    # COURSEGEN_A2UI_LESSONS=1 for trusted-tree lessons + slash catalogue edit
-    # (specs/a2ui_surgical_edit). Surgical HTML section PATCH works regardless.
+    # A2UI JSON lessons — OFF by default. Course chapters use HTML section fan-out
+    # with live gen_fragment streaming (better GenerationTheater UX). Set
+    # COURSEGEN_A2UI_LESSONS=1 only for experiments; page.py does not prefer A2UI.
     coursegen_a2ui_lessons: bool = Field(
         default=False,
         validation_alias=AliasChoices("COURSEGEN_A2UI_LESSONS"),

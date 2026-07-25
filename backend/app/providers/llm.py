@@ -83,7 +83,9 @@ class OpenAICompatLLM:
 
     @property
     def base_url(self) -> str:
-        return self._base_url or self.s.llm_base_url
+        # Anthropic's OpenAI-compat docs use a trailing slash; strip so we never
+        # double-slash when appending `/chat/completions`.
+        return (self._base_url or self.s.llm_base_url).rstrip("/")
 
     @property
     def api_key(self) -> str:
