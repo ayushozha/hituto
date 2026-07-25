@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en" data-studio-mode="__STUDIO_MODE__" data-studio-theme="__STUDIO_THEME__">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="hituto-presentation" content="studio">
+  <meta name="hituto-studio-mode" content="__STUDIO_MODE__">
+  <title>Hi Tuto Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+__STUDIO_CSS__
+  </style>
+</head>
+<body>
+  <header class="studio-bar" data-lesson-section="studio-overview" data-lesson-title="Studio overview">
+    <div class="studio-identity">
+      <span class="studio-mark" aria-hidden="true"><i></i><i></i></span>
+      <div>
+        <span class="studio-eyebrow">Hi Tuto Studio</span>
+        <p id="studio-objective">Manipulate the model and watch the explanation change.</p>
+      </div>
+    </div>
+    <div class="studio-bar-actions">
+      <span class="mode-chip" id="mode-chip">Interactive lab</span>
+      <button class="mobile-panel-button" type="button" data-panel-toggle="selection" data-lesson-control="open-selection">
+        <span aria-hidden="true">☷</span> Explore
+      </button>
+      <button class="mobile-panel-button" type="button" data-panel-toggle="evidence" data-lesson-control="open-evidence">
+        <span aria-hidden="true">◎</span> Explain
+      </button>
+    </div>
+  </header>
+
+  <main class="studio-grid" id="studio-grid">
+    <aside class="studio-rail" id="selection-panel" data-mobile-panel="selection" data-lesson-section="studio-selection" data-lesson-title="Explore the model">
+      <div class="panel-heading">
+        <div>
+          <span class="panel-kicker" id="subject-kicker">Learning object</span>
+          <h2 id="subject-heading">Explore</h2>
+        </div>
+        <button class="panel-close" type="button" data-panel-close aria-label="Close explore panel">×</button>
+      </div>
+      <div class="subject-list" id="subject-list"></div>
+      <div class="rail-divider"></div>
+      <div class="panel-heading compact">
+        <div>
+          <span class="panel-kicker" id="part-kicker">Focus points</span>
+          <h3 id="part-heading">What to notice</h3>
+        </div>
+      </div>
+      <div class="part-list" id="part-list"></div>
+      <p class="rail-tip" id="rail-tip">Choose a focus point to connect the object with its explanation.</p>
+    </aside>
+
+    <section class="stage" id="studio-stage" data-lesson-section="studio-stage" data-lesson-title="Live learning stage">
+      <div class="stage-head">
+        <div>
+          <span class="stage-kicker" id="stage-kicker">Live model</span>
+          <h1 id="stage-title">Interactive Studio</h1>
+          <p id="stage-subtitle">Change the model. See the result.</p>
+        </div>
+        <div class="stage-status" role="status" aria-live="polite">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="stage-status-text">Ready to explore</span>
+        </div>
+      </div>
+
+      <div class="canvas-wrap" id="canvas-wrap">
+        <img id="stage-image" class="stage-image" alt="Field guide specimen" hidden>
+        <canvas id="studio-canvas" width="960" height="620" aria-label="Interactive learning model"></canvas>
+        <div id="mesh-holder" __STUDIO_MESH_ATTRIBUTE__ data-mesh-canvas="studio-canvas" hidden></div>
+        <div class="stage-annotation" id="stage-annotation" aria-live="polite">
+          <span id="annotation-index">01</span>
+          <div>
+            <strong id="annotation-title">Overview</strong>
+            <small id="annotation-summary">Select a focus point to begin.</small>
+          </div>
+        </div>
+        <div class="gesture-tip" id="gesture-tip">Drag to rotate · scroll to zoom</div>
+        <div class="image-angle-control" id="image-angle-control" aria-label="Specimen view controls">
+          <span aria-hidden="true">↔</span>
+          <strong>Image view</strong>
+          <input id="image-angle" type="range" min="-12" max="12" step="1" value="0" aria-label="Specimen viewing angle">
+          <button id="image-fit" type="button" aria-label="Reset specimen view">⌗</button>
+        </div>
+      </div>
+
+      <div class="control-deck" id="control-deck" data-lesson-section="studio-controls" data-lesson-title="Model controls">
+        <div class="control-intro">
+          <span class="panel-kicker">Try it</span>
+          <strong id="control-prompt">Change one thing</strong>
+        </div>
+        <div class="control-list" id="control-list"></div>
+      </div>
+    </section>
+
+    <aside class="evidence-panel" id="evidence-panel" data-mobile-panel="evidence" data-lesson-section="studio-evidence" data-lesson-title="Explanation and evidence">
+      <div class="panel-heading">
+        <div>
+          <span class="panel-kicker" id="evidence-kicker">Now explaining</span>
+          <h2 id="evidence-title">Overview</h2>
+        </div>
+        <button class="panel-close" type="button" data-panel-close aria-label="Close explanation panel">×</button>
+      </div>
+      <p class="evidence-summary" id="evidence-summary">Select a focus point to see why it matters.</p>
+      <div class="field-tags" id="field-tags" aria-label="Specimen characteristics"></div>
+      <div class="state-readout">
+        <span class="readout-label" id="readout-label">Current state</span>
+        <strong id="readout-value">Ready</strong>
+      </div>
+      <div class="evidence-visual">
+        <img id="evidence-image" alt="Learning evidence visual" go-data-src="/image?query=interactive+learning+diagram">
+        <span id="evidence-image-label">Visual context</span>
+      </div>
+      <div class="evidence-copy" id="evidence-copy"></div>
+      <div class="evidence-source" id="evidence-source">
+        <span aria-hidden="true">↳</span>
+        <span id="source-label">Lesson evidence appears here</span>
+      </div>
+    </aside>
+  </main>
+
+  <div class="panel-scrim" id="panel-scrim" data-panel-close></div>
+  <script>
+    window.__HITUTO_STUDIO_MANIFEST__ = __STUDIO_MANIFEST__;
+  </script>
+  <script>
+__STUDIO_RUNTIME__
+  </script>
+</body>
+</html>

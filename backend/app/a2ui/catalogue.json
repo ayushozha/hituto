@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "components": [
+    "stack",
+    "heading",
+    "text",
+    "callout",
+    "math",
+    "steps",
+    "quiz",
+    "table",
+    "chart",
+    "slider",
+    "diagram",
+    "map",
+    "embed"
+  ]
+}

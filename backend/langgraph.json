@@ -1,0 +1,10 @@
+{
+  "$schema": "https://langgra.ph/schema.json",
+  "python_version": "3.13",
+  "dependencies": ["."],
+  "graphs": {
+    "coursegen": "app.studio:make_coursegen_graph",
+    "tutor": "app.studio:make_tutor_graph"
+  },
+  "env": ".env"
+}

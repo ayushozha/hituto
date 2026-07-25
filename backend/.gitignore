@@ -1,0 +1,11 @@
+# Backend-local ignores (see repo-root .gitignore for the full list)
+.env
+.env.*
+!.env.example
+*.db
+!seed/
+!seed/**
+uploads/
+.venv/
+.cache/
+.voice-e2e-worker.log

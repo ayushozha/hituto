@@ -1,0 +1,4 @@
+interface:
+  display_name: "Hi Tuto Generated Lesson Design"
+  short_description: "Keep generated lessons visually on-brand"
+  default_prompt: "Use $hituto-generated-lesson-design to build a cohesive interactive Hi Tuto lesson capsule."

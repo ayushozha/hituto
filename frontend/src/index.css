@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    color: #18181B;
+    background-color: #FAFAFA;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: #FAF3E3;
+    color: #78350F;
+  }
+
+  :focus-visible {
+    outline: 3px solid #D97706;
+    outline-offset: 3px;
+  }
+
+  /* Map the existing markup's icon class onto the rounded Material Symbols face */
+  .material-symbols-outlined {
+    font-family: "Material Symbols Rounded";
+    font-weight: normal;
+    font-style: normal;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    direction: ltr;
+    -webkit-font-feature-settings: "liga";
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: "FILL" 0, "wght" 500, "GRAD" 0, "opsz" 24;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    font-weight: 800;
+    letter-spacing: -0.025em;
+  }
+
+  .font-logo {
+    font-family: "Fraunces", Georgia, serif;
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 100, "WONK" 0;
+    letter-spacing: -0.01em;
+  }
+
+  /* Editorial display face for section headlines (clean Fraunces) */
+  .font-display-serif {
+    font-family: "Fraunces", Georgia, serif;
+    font-optical-sizing: auto;
+    font-variation-settings: "SOFT" 0, "WONK" 0;
+    font-weight: 620;
+    letter-spacing: -0.02em;
+  }
+
+  /* The one true eyebrow label — replaces hand-written tracking variants */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase leading-5 tracking-[0.18em];
+  }
+
+  .btn-press {
+    @apply transition-[transform,box-shadow,filter] duration-150;
+  }
+
+  .btn-press-dark {
+    @apply transition-[transform,box-shadow,filter] duration-150;
+  }
+
+  .studio-panel {
+    @apply border border-line bg-surface shadow-card;
+  }
+
+  .studio-kicker {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em];
+  }
+
+  .field-rule {
+    background-image: repeating-linear-gradient(
+      0deg,
+      transparent 0,
+      transparent 30px,
+      rgba(24, 24, 27, 0.06) 31px
+    );
+  }
+
+  .hard-card {
+    @apply rounded-4xl border border-line;
+  }
+
+  .sticker {
+    @apply inline-flex items-center bg-sand font-semibold;
+  }
+
+  .doodle-grid {
+    background-image: radial-gradient(rgba(24, 24, 27, 0.08) 1.1px, transparent 1.1px);
+    background-size: 18px 18px;
+  }
+
+  /* Faint grain for large light sections — atmosphere, not texture noise */
+  .grain {
+    background-image: radial-gradient(rgba(24, 24, 27, 0.04) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+
+  /* Soft glow for dark panels (kept for compat; minimalist surfaces prefer flat) */
+  .plum-glow {
+    background-image: radial-gradient(ellipse 60% 50% at 70% 0%, rgba(255, 255, 255, 0.06), transparent 70%);
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:focus-within {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* Refined light-theme range sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #F4F4F5;
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: #F4F4F5;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -6px;
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: #16A34A;
+  border: 3px solid #18181B;
+  box-shadow: none;
+}
+input[type="range"]::-moz-range-thumb {
+  height: 18px;
+  width: 18px;
+  border-radius: 999px;
+  background: #16A34A;
+  border: 3px solid #18181B;
+  box-shadow: none;
+}
+
+/* Soft custom scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #D4D4D8 transparent;
+}
+*::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+*::-webkit-scrollbar-thumb {
+  background: #D4D4D8;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: #A1A1AA;
+  background-clip: padding-box;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-5px); }
+  40%, 80% { transform: translateX(5px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes deal-in {
+  0% { opacity: 0; transform: translate(56px, 84px) rotate(9deg) scale(0.88); }
+  70% { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0) rotate(0deg) scale(1); }
+}
+.animate-deal-in {
+  animation: deal-in 0.55s cubic-bezier(0.18, 0.9, 0.22, 1.05) both;
+}

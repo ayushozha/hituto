@@ -1,0 +1,82 @@
+[project]
+name = "hituto-backend"
+version = "0.1.0"
+description = "Hi Tuto backend (FastAPI + LangGraph)"
+license = { text = "Proprietary" }
+authors = [{ name = "Pramod Thebe" }]
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "sqlalchemy>=2.0",
+    "httpx>=0.27",
+    "langgraph>=0.2,<2.0",
+    "langsmith>=0.3,<1.0",
+    "sse-starlette>=2.1",
+    "python-multipart>=0.0.9",
+    "pyjwt[crypto]>=2.8",
+    "langgraph-checkpoint-sqlite>=3.1.0",
+    "deepagents>=0.6.12",
+    "langchain>=1.3.13",
+    "langchain-openai>=1.0",
+    # Page control (observe/click/type/highlight + agent cursor) for lesson capsules.
+    "guidebridge>=0.2.0",
+]
+
+[project.optional-dependencies]
+# Postgres + pgvector for document-grounded courses (see specs/document-grounded-courses).
+# Point DATABASE_URL at your Postgres instance (local or hosted).
+postgres = [
+    "psycopg[binary]>=3.1",
+    "pgvector>=0.2.5",
+    "alembic>=1.13",
+]
+# Document ingestion: PDF parsing + section-aware chunking.
+documents = [
+    "langchain-text-splitters>=0.2",
+    "tiktoken>=0.7",
+    "liteparse>=2.4",
+]
+# Voice instructor: browser WebSocket -> OpenAI Realtime S2S over raw websockets.
+# The legacy Deepgram cascade is kept importable for manual recovery, but the app does not
+# wire it as a runtime fallback.
+voice = [
+    "websockets>=13.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "ruff>=0.16.0",
+    # Local Agent Server for LangSmith Studio (`make studio` / `langgraph dev`).
+    "langgraph-cli[inmem]>=0.2",
+]
+
+# Installable so ``langgraph dev`` can import ``app.studio`` graph factories.
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.uv]
+package = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+markers = [
+    "no_fakes: disable autouse fake provider patches (registry unit tests)",
+    "live: hits real OpenAI Realtime services; needs creds + RUN_LIVE_VOICE=1 (skipped by default)",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+# Keep the established CI gate explicit as Ruff evolves its default rule set.
+select = ["E4", "E7", "E9", "F"]

@@ -1,0 +1,28 @@
+{
+  "name": "@hituto/coding-lab-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Hi-Tuto coding lab as an MCP App (AG-UI-aligned exercise surface)",
+  "scripts": {
+    "build": "INPUT=mcp-app.html vite build",
+    "serve": "npx tsx server.ts",
+    "dev": "npm run build && npm run serve"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.7.4",
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vite": "^5.4.0",
+    "vite-plugin-singlefile": "^2.0.3"
+  }
+}

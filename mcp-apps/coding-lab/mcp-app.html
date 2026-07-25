@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coding Lab</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #0b0f1a;
+        --panel: #121826;
+        --panel-2: #161d2e;
+        --border: #243049;
+        --text: #e8eefc;
+        --muted: #8b9bb8;
+        --accent: #3d8bfd;
+        --accent-soft: rgba(61, 139, 253, 0.15);
+        --ok: #34d399;
+        --err: #fb7185;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        --sans: "Segoe UI", ui-sans-serif, system-ui, -apple-system, sans-serif;
+      }
+      * { box-sizing: border-box; }
+      html, body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family: var(--sans);
+      }
+      #shell {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        height: 100%;
+        min-height: 420px;
+      }
+      .topbar {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        background: linear-gradient(180deg, #141b2c, #101625);
+      }
+      .brand {
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .brand strong { color: var(--text); font-weight: 700; }
+      .goal {
+        flex: 1;
+        min-width: 0;
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .goal b { color: var(--text); font-weight: 600; }
+      .actions { display: flex; gap: 6px; }
+      button {
+        border: 0;
+        border-radius: 8px;
+        background: var(--panel-2);
+        color: var(--text);
+        border: 1px solid var(--border);
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 10px;
+        cursor: pointer;
+      }
+      button:hover { background: #1b2438; }
+      button.primary {
+        background: var(--accent);
+        border-color: transparent;
+        color: white;
+      }
+      button.primary:hover { filter: brightness(1.08); }
+      button:disabled { opacity: 0.45; cursor: default; }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 200px 1fr;
+        min-height: 0;
+        height: 100%;
+      }
+      .files {
+        border-right: 1px solid var(--border);
+        background: var(--panel);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .files-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 10px 12px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .file-list {
+        overflow: auto;
+        padding: 4px 6px 10px;
+        flex: 1;
+      }
+      .file-item {
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: 0;
+        border-radius: 8px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        padding: 7px 8px;
+        margin-bottom: 2px;
+        cursor: pointer;
+      }
+      .file-item:hover { background: #1a2236; color: var(--text); }
+      .file-item.active {
+        background: var(--accent-soft);
+        color: #dbeafe;
+      }
+      .deps {
+        border-top: 1px solid var(--border);
+        padding: 10px 12px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+
+      .main {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: var(--bg);
+        height: 100%;
+      }
+      .tabs {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 6px 10px 0;
+        border-bottom: 1px solid var(--border);
+        background: var(--panel-2);
+        flex-shrink: 0;
+      }
+      .tab {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        border-radius: 8px 8px 0 0;
+        padding: 8px 12px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .tab.active {
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-bottom-color: var(--bg);
+      }
+      .tab[hidden] { display: none !important; }
+      .tab-spacer { flex: 1; }
+      .lang-pill {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--muted);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 3px 8px;
+        margin-bottom: 4px;
+      }
+
+      .panes {
+        position: relative;
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+      }
+      .pane {
+        display: none;
+        position: absolute;
+        inset: 0;
+        min-height: 0;
+        overflow: auto;
+      }
+      .pane.active { display: block; }
+      #pane-code.active { display: grid; }
+      .editor-wrap {
+        display: grid;
+        grid-template-columns: 40px 1fr;
+        min-height: 0;
+        height: 100%;
+      }
+      .gutter {
+        background: #0e1422;
+        border-right: 1px solid var(--border);
+        color: #5b6b88;
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 1.55;
+        padding: 12px 8px;
+        text-align: right;
+        overflow: hidden;
+        user-select: none;
+      }
+      #editor {
+        width: 100%;
+        height: 100%;
+        min-height: 280px;
+        resize: none;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: #e8eefc;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.55;
+        padding: 12px;
+      }
+      #console {
+        margin: 0;
+        padding: 14px;
+        font-family: var(--mono);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        color: #cbd5e1;
+        overflow: auto;
+      }
+      #console .ok { color: var(--ok); }
+      #console .err { color: var(--err); }
+      #preview {
+        width: 100%;
+        height: 100%;
+        min-height: 280px;
+        border: 0;
+        background: white;
+      }
+      .empty {
+        padding: 24px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .support-note {
+        border-top: 1px solid var(--border);
+        padding: 6px 12px;
+        font-size: 11px;
+        color: var(--muted);
+        background: var(--panel);
+      }
+      @media (max-width: 640px) {
+        .workspace { grid-template-columns: 1fr; }
+        .files { max-height: 140px; border-right: 0; border-bottom: 1px solid var(--border); }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell">
+      <header class="topbar">
+        <div class="brand"><strong id="title">Coding Lab</strong></div>
+        <div class="goal"><b>Goal:</b> <span id="instructions">Waiting for an exercise…</span></div>
+        <div class="actions">
+          <button id="hint-btn" type="button" hidden>Hint</button>
+          <button id="format-btn" type="button">Format</button>
+          <button id="run-btn" class="primary" type="button">Run</button>
+        </div>
+      </header>
+
+      <div class="workspace">
+        <aside class="files">
+          <div class="files-head">
+            <span>Files</span>
+          </div>
+          <div class="file-list" id="file-list"></div>
+          <div class="deps">Dependencies</div>
+        </aside>
+
+        <section class="main">
+          <div class="tabs">
+            <button class="tab active" data-tab="code" type="button">Code</button>
+            <button class="tab" data-tab="console" id="tab-console" type="button">Console</button>
+            <button class="tab" data-tab="preview" id="tab-preview" type="button">Preview</button>
+            <div class="tab-spacer"></div>
+            <span class="lang-pill" id="lang-pill">javascript</span>
+          </div>
+
+          <div class="panes">
+            <div class="pane active" id="pane-code">
+              <div class="editor-wrap">
+                <div class="gutter" id="gutter">1</div>
+                <textarea id="editor" spellcheck="false" aria-label="Code editor"></textarea>
+              </div>
+            </div>
+            <div class="pane" id="pane-console">
+              <pre id="console">No output yet. Press Run.</pre>
+            </div>
+            <div class="pane" id="pane-preview">
+              <iframe id="preview" title="Preview" sandbox="allow-scripts"></iframe>
+            </div>
+          </div>
+        </section>
+      </div>
+      <div class="support-note" id="support-note">
+        Runs in-browser: JavaScript, Python, HTML/CSS · Other languages: Submit for tutor review
+      </div>
+    </div>
+    <script type="module" src="/src/mcp-app.ts"></script>
+  </body>
+</html>

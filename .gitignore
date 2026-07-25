@@ -1,0 +1,130 @@
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+*~
+
+# ========================
+# IDEs & Editors
+# ========================
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.kiro/
+.claude/*
+!.claude/skills/
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.venv/
+venv/
+env/
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+
+# ========================
+# Node / Frontend
+# ========================
+node_modules/
+dist/
+.cache/
+*.tsbuildinfo
+.eslintcache
+.parcel-cache/
+whiteboard-viewer/frontend.zip
+
+# ========================
+# Vite
+# ========================
+*.local
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.*
+!.env.example
+
+# ========================
+# Logs
+# ========================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ========================
+# Database
+# ========================
+*.db
+*.db-shm
+*.db-wal
+*.db-journal
+*.sqlite
+*.sqlite3
+*.sqlite-shm
+*.sqlite-wal
+
+# ========================
+# Uploads & Generated
+# ========================
+uploads/
+.playwright-cli/
+.tmp_docs/
+output/
+
+# ========================
+# Misc
+# ========================
+.voice-e2e-worker.log
+
+# Local design specs (not shared via git)
+specs/
+
+# Local DB migration dumps
+backups/
+frontend/hituto-frontend.zip
+frontend/.env.production.local
+!backend/seed/
+!backend/seed/**
+
+# InsForge & AI agent skills
+.insforge
+.agent
+.agents
+.cursor
+.augment
+.claude
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
