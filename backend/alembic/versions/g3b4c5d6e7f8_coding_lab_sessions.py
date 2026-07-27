@@ -46,13 +46,14 @@ def upgrade() -> None:
         sa.Column("revision", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
+        sa.UniqueConstraint(
+            "tool_call_id",
+            name="uq_coding_lab_sessions_tool_call_id",
+        ),
     )
     op.create_index("ix_coding_lab_sessions_course_id", "coding_lab_sessions", ["course_id"])
     op.create_index("ix_coding_lab_sessions_lesson_id", "coding_lab_sessions", ["lesson_id"])
     op.create_index("ix_coding_lab_sessions_user_id", "coding_lab_sessions", ["user_id"])
-    op.create_unique_constraint(
-        "uq_coding_lab_sessions_tool_call_id", "coding_lab_sessions", ["tool_call_id"]
-    )
     op.create_index("ix_coding_lab_sessions_tool_call_id", "coding_lab_sessions", ["tool_call_id"])
     op.create_index("ix_coding_lab_sessions_updated_at", "coding_lab_sessions", ["updated_at"])
 
@@ -63,7 +64,6 @@ def downgrade() -> None:
         return
     op.drop_index("ix_coding_lab_sessions_updated_at", table_name="coding_lab_sessions")
     op.drop_index("ix_coding_lab_sessions_tool_call_id", table_name="coding_lab_sessions")
-    op.drop_constraint("uq_coding_lab_sessions_tool_call_id", "coding_lab_sessions", type_="unique")
     op.drop_index("ix_coding_lab_sessions_user_id", table_name="coding_lab_sessions")
     op.drop_index("ix_coding_lab_sessions_lesson_id", table_name="coding_lab_sessions")
     op.drop_index("ix_coding_lab_sessions_course_id", table_name="coding_lab_sessions")

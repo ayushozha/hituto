@@ -7,7 +7,8 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_database_url, get_settings
@@ -17,8 +18,23 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 
 _db_url = get_database_url()
-_connect_args = {"check_same_thread": False} if _db_url.startswith("sqlite") else {}
-engine = create_engine(_db_url, connect_args=_connect_args, future=True)
+
+
+def _enable_sqlite_foreign_keys(dbapi_connection, _connection_record) -> None:
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
+
+def create_database_engine(database_url: str) -> Engine:
+    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
+    database_engine = create_engine(database_url, connect_args=connect_args, future=True)
+    if database_url.startswith("sqlite"):
+        event.listen(database_engine, "connect", _enable_sqlite_foreign_keys)
+    return database_engine
+
+
+engine = create_database_engine(_db_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)
 
 

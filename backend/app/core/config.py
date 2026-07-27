@@ -309,6 +309,10 @@ class Settings(BaseSettings):
         default=2,
         validation_alias=AliasChoices("MAX_GEN_RETRIES", "GENERATION_RETRY_CAP"),
     )
+    skip_provider_validation: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("SKIP_PROVIDER_VALIDATION"),
+    )
     runtime_validation_enabled: bool = True
     database_url: str = "sqlite:///./hituto.db"
     # LangGraph HITL checkpointer path (SQLite). Empty → derived from database_url / cwd.

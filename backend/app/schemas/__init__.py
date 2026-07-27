@@ -49,6 +49,23 @@ from .source import (
     VideoGuideOut,
 )
 from .profile import LearningPreferences, ProfileHints, ProfileOut, ProfilePut
+from .report import (
+    AcknowledgementOut,
+    AuditEventOut,
+    EvidenceItem,
+    GrantOut,
+    InvitationClaimIn,
+    LearnerCreate,
+    LearnerOut,
+    ReportContent,
+    ReportCreate,
+    ReportHistoryOut,
+    ReportInvitationOut,
+    ReportOut,
+    ReportPatch,
+    ReportPermissions,
+    ReportPublishOut,
+)
 from .tutor import ChatMessage, ChatToolCall, TutorChatRequest, TutorChatResponse
 
 __all__ = [
@@ -105,4 +122,19 @@ __all__ = [
     "ProfileHints",
     "ProfileOut",
     "ProfilePut",
+    "AcknowledgementOut",
+    "AuditEventOut",
+    "EvidenceItem",
+    "GrantOut",
+    "InvitationClaimIn",
+    "LearnerCreate",
+    "LearnerOut",
+    "ReportContent",
+    "ReportCreate",
+    "ReportHistoryOut",
+    "ReportInvitationOut",
+    "ReportOut",
+    "ReportPatch",
+    "ReportPermissions",
+    "ReportPublishOut",
 ]

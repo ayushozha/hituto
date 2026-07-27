@@ -1,6 +1,7 @@
 import { BillingUsage, CourseCard, Progress, fetchBillingUsage } from "../../api";
 import { BrandMark } from "../../components/BrandMark";
 import { Mascot } from "../../components/Mascot";
+import { AUTH_DISABLED } from "../../context/AuthContext";
 import { hashFor } from "../../routing";
 import { UserButton } from "@clerk/react";
 import { useEffect, useRef, useState } from "react";
@@ -101,6 +102,16 @@ export function Dashboard({
                     } left`}
               </a>
             ) : null}
+            <a
+              href={hashFor({ kind: "reports" })}
+              className="inline-flex min-h-11 items-center gap-2 rounded-full px-3 text-sm font-semibold text-ink-soft transition hover:bg-white hover:text-ink sm:px-4"
+              aria-label="Open reports"
+            >
+              <span className="material-symbols-outlined text-[18px]" aria-hidden="true">
+                description
+              </span>
+              <span className="hidden md:inline">Reports</span>
+            </a>
             <button
               type="button"
               onClick={onCreate}
@@ -110,6 +121,15 @@ export function Dashboard({
               <span className="hidden sm:inline">New course</span>
               <span className="sm:hidden">New</span>
             </button>
+            {AUTH_DISABLED ? (
+              <span
+                className="grid h-9 w-9 place-items-center rounded-full bg-ink text-xs font-semibold text-white"
+                title="Local demo user"
+                aria-label="Local demo user"
+              >
+                D
+              </span>
+            ) : (
             <UserButton
               appearance={{
                 elements: {
@@ -134,6 +154,7 @@ export function Dashboard({
                 />
               </UserButton.MenuItems>
             </UserButton>
+            )}
           </div>
         </div>
       </header>

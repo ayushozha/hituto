@@ -106,7 +106,7 @@ def get_lesson_source_pack(
     user_id: str = Depends(get_current_user_id),
 ):
     """The lesson's grounding pack for the viewer source drawer (task 46). Null for topic lessons."""
-    _owned_course(db, course_id, user_id)
+    _owned_lesson(db, course_id, lesson_id, user_id)
     return course_service.lesson_source_pack(db, lesson_id)
 
 
@@ -201,7 +201,7 @@ async def refine_course(
         lesson_id = first.id if first else None
     if not lesson_id:
         raise HTTPException(400, "No lesson found to refine")
-    lesson = db.get(Lesson, lesson_id)
+    c, lesson = _owned_lesson(db, course_id, lesson_id, user_id)
     course_service.start_generation(
         db,
         c,
@@ -411,6 +411,8 @@ def versions(
     user_id: str = Depends(get_current_user_id),
 ):
     c = _owned_course(db, course_id, user_id)
+    if lesson_id:
+        _owned_lesson(db, course_id, lesson_id, user_id)
     return course_service.artifact_versions(db, c, lesson_id)
 
 

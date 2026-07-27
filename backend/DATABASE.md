@@ -35,8 +35,8 @@ Everything is owned by `user_id` (top-level index on `courses`/`source_documents
 inherit via FK). Deleting a course cascades to its lessons/artifacts/citations. Public **share
 links** are the one exception: `lessons.share_token` is an unguessable token that grants
 anonymous read-only access with no ownership check (`api/v1/shared.py`). Auth (`core/auth.py`)
-verifies an InsForge JWT (HS256 with `INSFORGE_JWT_SECRET`) → `user_id`, or uses
-`DEV_USER="dev"` when `AUTH_DISABLED=1`.
+verifies a Clerk session JWT against the configured issuer's rotating JWKS and derives
+`user_id` from `sub`, or uses `DEV_USER="dev"` only when `AUTH_DISABLED=1` for local work.
 
 ## Persistence & config (`core/`)
 

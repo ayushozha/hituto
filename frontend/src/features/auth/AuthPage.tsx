@@ -1,18 +1,37 @@
-import { SignIn, SignUp, useAuth as useClerkAuth } from "@clerk/react";
-import { useEffect } from "react";
+import { SignIn, SignUp } from "@clerk/react";
 
 import { BrandMark } from "../../components/BrandMark";
 import { Mascot } from "../../components/Mascot";
-import { consumeReturnHash, hashFor, type AuthMode } from "../../routing";
+import { AUTH_DISABLED } from "../../context/AuthContext";
+import {
+  discardReturnHash,
+  hashFor,
+  type AppRoute,
+  type AuthMode,
+} from "../../routing";
 
 export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) {
-  const isLogin = initialMode === "login";
-  const { isLoaded, isSignedIn } = useClerkAuth();
+  if (AUTH_DISABLED) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-bone px-5 text-center font-sans text-ink">
+        <div>
+          <BrandMark className="mx-auto !h-10 !w-10 rounded-xl" />
+          <p className="mt-4 text-sm font-medium text-ink-soft">Opening the local demo...</p>
+        </div>
+      </div>
+    );
+  }
 
-  useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
-    window.location.hash = consumeReturnHash();
-  }, [isLoaded, isSignedIn]);
+  return <ClerkAuthPage initialMode={initialMode} />;
+}
+
+function ClerkAuthPage({ initialMode }: { initialMode: AuthMode }) {
+  const isLogin = initialMode === "login";
+
+  function exitAuth(route: AppRoute) {
+    discardReturnHash();
+    window.location.replace(hashFor(route));
+  }
 
   return (
     <div className="min-h-screen bg-bone font-sans text-ink selection:bg-cream selection:text-brand-dark lg:grid lg:grid-cols-[1.05fr_0.95fr]">
@@ -24,9 +43,7 @@ export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) 
 
         <button
           type="button"
-          onClick={() => {
-            window.location.hash = hashFor({ kind: "landing" });
-          }}
+          onClick={() => exitAuth({ kind: "landing" })}
           className="relative z-10 flex min-h-12 items-center gap-2.5 self-start text-left transition hover:opacity-85"
         >
           <BrandMark className="!h-9 !w-9 rounded-xl" />
@@ -78,9 +95,7 @@ export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) 
           <div className="mb-8 flex items-center justify-between lg:hidden">
             <button
               type="button"
-              onClick={() => {
-                window.location.hash = hashFor({ kind: "landing" });
-              }}
+              onClick={() => exitAuth({ kind: "landing" })}
               className="flex min-h-12 items-center gap-2.5 text-left"
             >
               <BrandMark className="!h-9 !w-9 rounded-xl" />
@@ -88,9 +103,7 @@ export function AuthPage({ initialMode = "login" }: { initialMode?: AuthMode }) 
             </button>
             <button
               type="button"
-              onClick={() => {
-                window.location.hash = hashFor({ kind: "pricing" });
-              }}
+              onClick={() => exitAuth({ kind: "pricing" })}
               className="flex min-h-12 items-center px-2 text-sm font-medium text-ink-soft transition hover:text-ink"
             >
               Pricing

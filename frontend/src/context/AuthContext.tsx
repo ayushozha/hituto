@@ -21,8 +21,35 @@ const AuthContext = createContext<AuthContextValue>({
 });
 
 /** Local hacking: VITE_AUTH_DISABLED=1 skips Clerk and uses a synthetic "dev" user. */
-const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === "1";
+export const AUTH_DISABLED = import.meta.env.VITE_AUTH_DISABLED === "1";
 
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return AUTH_DISABLED ? (
+    <LocalAuthProvider>{children}</LocalAuthProvider>
+  ) : (
+    <ClerkAuthProvider>{children}</ClerkAuthProvider>
+  );
+}
+
+function LocalAuthProvider({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    registerTokenGetter(null);
+  }, []);
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user: { id: "dev", email: "dev@local" },
+        loading: false,
+        signOut: async () => {},
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+/** Kept separate so no Clerk hook runs when the app boots without ClerkProvider. */
 function ClerkAuthProvider({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, userId, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
@@ -62,33 +89,6 @@ function ClerkAuthProvider({ children }: { children: ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-function DevAuthProvider({ children }: { children: ReactNode }) {
-  useEffect(() => {
-    registerTokenGetter(null);
-  }, []);
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user: { id: "dev", email: "dev@local" },
-        loading: false,
-        signOut: async () => {},
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  // Clerk hooks must only run under <ClerkProvider>. When auth is disabled we skip
-  // Clerk entirely so the app boots without a publishable key.
-  if (AUTH_DISABLED) {
-    return <DevAuthProvider>{children}</DevAuthProvider>;
-  }
-  return <ClerkAuthProvider>{children}</ClerkAuthProvider>;
 }
 
 export function useAuth() {
