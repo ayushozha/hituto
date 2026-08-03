@@ -1,0 +1,26 @@
+# Root build context for the single-container image (see ./Dockerfile).
+# Keep it small and free of secrets/local state. NOTE: backend/game_kits and
+# backend/seed are deliberately NOT excluded here — game_kits is read at runtime
+# by backend/app/api/v1/tools.py.
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.ruff_cache
+node_modules
+frontend/dist
+whiteboard-viewer/node_modules
+mcp-apps/**/node_modules
+ui_ux_design
+*.db
+*.db-shm
+*.db-wal
+uploads
+tmp_quaternius
+.env
+.env.*
+!.env.example
+backend/tests
