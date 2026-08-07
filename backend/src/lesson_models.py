@@ -32,7 +32,7 @@ class InkCommand(CommandBase):
     layout: LayoutMode = "absolute"
     text: str = Field(min_length=1, max_length=240)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     x: float = Field(default=0.0, ge=0.0, le=1.0)
     y: float = Field(default=0.0, ge=0.0, le=1.0)
@@ -56,8 +56,12 @@ class MathCommand(InkCommand):
     @field_validator("text")
     @classmethod
     def math_is_not_plain_prose(cls, value: str) -> str:
+        # Named quantities are ordinary notation — "Area = ½ · base · height"
+        # is maths, not prose. Only reject when there is nothing mathematical
+        # left to justify the KaTeX pass.
         plain_words = re.findall(r"[A-Za-z]{3,}", value.replace(r"\text", ""))
-        if " " in value and len(plain_words) >= 3 and r"\text{" not in value:
+        has_maths = re.search(r"[0-9=+\-*/^_\\<>×·÷±≤≥≠]", value) is not None
+        if len(plain_words) >= 3 and not has_maths and r"\text{" not in value:
             raise ValueError("plain prose belongs in a text command, not a math command")
         return value
 
@@ -70,7 +74,7 @@ class SegmentCommand(CommandBase):
     x2: float = Field(ge=0.0, le=1.0)
     y2: float = Field(ge=0.0, le=1.0)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
@@ -82,7 +86,7 @@ class RectCommand(CommandBase):
     width: float = Field(gt=0.0, le=1.0)
     height: float = Field(gt=0.0, le=1.0)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
     preserve_aspect: bool = False
 
@@ -111,7 +115,7 @@ class CircleCommand(CommandBase):
     y: float = Field(ge=0.0, le=1.0)
     radius: float = Field(gt=0.0, le=0.5)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
@@ -124,7 +128,7 @@ class AngleCommand(CommandBase):
     start_angle: float = Field(ge=-360.0, le=360.0)
     end_angle: float = Field(ge=-360.0, le=360.0)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
@@ -140,7 +144,7 @@ class PolylineCommand(CommandBase):
     space: Space = "diagram"
     points: list[Point] = Field(min_length=2, max_length=40)
     color: str = Field(default="#1769e0", max_length=24)
-    size: float = Field(default=0.04, ge=0.01, le=0.2)
+    size: float = Field(default=0.04, ge=0.001, le=0.2)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
 
@@ -173,8 +177,8 @@ class GraphMarker(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     id: str = Field(min_length=1, max_length=80)
-    x: float = Field(ge=-1000.0, le=1000.0)
-    y: float = Field(ge=-1000.0, le=1000.0)
+    x: float = Field(ge=-1_000_000.0, le=1_000_000.0)
+    y: float = Field(ge=-1_000_000.0, le=1_000_000.0)
     label: str = Field(default="", max_length=80)
     color: str = Field(default="#d93025", max_length=24)
 
@@ -190,10 +194,10 @@ class GraphCommand(CommandBase):
     layout: Literal["auto"] = "auto"
     curves: list[GraphCurve] = Field(default_factory=list, max_length=6)
     markers: list[GraphMarker] = Field(default_factory=list, max_length=12)
-    x_min: float = Field(ge=-1000.0, le=1000.0)
-    x_max: float = Field(ge=-1000.0, le=1000.0)
-    y_min: float = Field(ge=-1000.0, le=1000.0)
-    y_max: float = Field(ge=-1000.0, le=1000.0)
+    x_min: float = Field(ge=-1_000_000.0, le=1_000_000.0)
+    x_max: float = Field(ge=-1_000_000.0, le=1_000_000.0)
+    y_min: float = Field(ge=-1_000_000.0, le=1_000_000.0)
+    y_max: float = Field(ge=-1_000_000.0, le=1_000_000.0)
     opacity: float = Field(default=1.0, ge=0.0, le=1.0)
 
     @model_validator(mode="after")
@@ -285,6 +289,37 @@ SceneCommand = Annotated[
 ]
 
 
+# What the planner actually fills in.
+#
+# `SceneCommand` is a 14-member discriminated union, and measurement showed the
+# planner almost never reaches `text`/`math` out of it — it picks a geometry
+# primitive and encodes labels as zero-length lines. Splitting writing from
+# drawing means choosing to write is a 2-way choice competing against nothing,
+# instead of a 14-way one competing against twelve shapes.
+#
+# erase/clear/camera are deliberately absent: `_normalize_lesson` has always
+# dropped them, so offering them only widened the choice for no effect.
+WriteCommand = Annotated[
+    Union[TextCommand, MathCommand],
+    Field(discriminator="kind"),
+]
+
+DrawCommand = Annotated[
+    Union[
+        SegmentCommand,
+        RectCommand,
+        HighlightCommand,
+        CircleCommand,
+        AngleCommand,
+        PolylineCommand,
+        GraphCommand,
+        BarChartCommand,
+        VennCommand,
+    ],
+    Field(discriminator="kind"),
+]
+
+
 class TeachingBeat(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -309,6 +344,64 @@ class LessonPlan(BaseModel):
     answer_explanation: str = Field(min_length=5, max_length=1200)
     confidence: float = Field(ge=0.0, le=1.0)
     beats: list[TeachingBeat] = Field(min_length=2, max_length=8)
+
+
+class BeatDraft(BaseModel):
+    """One teaching beat as the planner writes it, before flattening."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str = Field(min_length=1, max_length=80)
+    teaching_goal: str = Field(min_length=3, max_length=180)
+    spoken_text: str = Field(min_length=3, max_length=900)
+    caption: str = Field(min_length=1, max_length=220)
+    strategy: str = Field(min_length=2, max_length=80)
+    # At least one note per beat: a beat that draws without writing leaves the
+    # board silent, which is the state the reviewer kept rejecting.
+    write: list[WriteCommand] = Field(min_length=1, max_length=10)
+    draw: list[DrawCommand] = Field(default_factory=list, max_length=12)
+    pause_after_ms: int = Field(default=0, ge=0, le=3000)
+    checkpoint: bool = False
+
+
+class LessonDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    domain: Literal["math", "reading_writing"]
+    question_summary: str = Field(min_length=5, max_length=600)
+    final_answer: str = Field(min_length=1, max_length=300)
+    answer_explanation: str = Field(min_length=5, max_length=1200)
+    confidence: float = Field(ge=0.0, le=1.0)
+    beats: list[BeatDraft] = Field(min_length=2, max_length=8)
+
+    def to_plan(self) -> "LessonPlan":
+        """
+        Flatten to the shape the renderer, reviewer, and stored lessons use.
+
+        Writing comes first so a highlight in `draw` can always resolve a
+        target that was written earlier in the same beat — `_normalize_lesson`
+        drops highlights whose target has not been written yet.
+        """
+        return LessonPlan(
+            domain=self.domain,
+            question_summary=self.question_summary,
+            final_answer=self.final_answer,
+            answer_explanation=self.answer_explanation,
+            confidence=self.confidence,
+            beats=[
+                TeachingBeat(
+                    id=beat.id,
+                    teaching_goal=beat.teaching_goal,
+                    spoken_text=beat.spoken_text,
+                    caption=beat.caption,
+                    strategy=beat.strategy,
+                    commands=[*beat.write, *beat.draw],
+                    pause_after_ms=beat.pause_after_ms,
+                    checkpoint=beat.checkpoint,
+                )
+                for beat in self.beats
+            ],
+        )
 
 
 class LessonReview(BaseModel):

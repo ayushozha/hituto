@@ -1063,7 +1063,7 @@ class TutorSessionServicer(TutorSession.Servicer):
             planned = await lesson_planner.run(context, prompt)
             lesson = _inject_diagram(
                 _normalize_lesson(
-                    planned.output,
+                    planned.output.to_plan(),
                     source_has_image=has_image,
                     question_text=student_material,
                 ),
@@ -1111,7 +1111,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                     )
                 correction_prompt = (
                     "Correct the proposed SAT lesson using every reviewer issue below. "
-                    "Return a complete replacement LessonPlan and keep the correct final answer.\n\n"
+                    "Return a complete replacement lesson and keep the correct final answer.\n\n"
                     f"Student material:\n{student_material}\n\n"
                     f"Reviewer issues:\n{issue_text}\n\n"
                     f"Rejected lesson JSON:\n{lesson.model_dump_json()}\n\n"
@@ -1128,7 +1128,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                 )
                 lesson = _inject_diagram(
                     _normalize_lesson(
-                        corrected.output,
+                        corrected.output.to_plan(),
                         source_has_image=has_image,
                         question_text=student_material,
                     ),
@@ -1247,7 +1247,7 @@ class TutorSessionServicer(TutorSession.Servicer):
         try:
             result = await lesson_replanner.run(context, prompt)
             lesson: LessonPlan = _normalize_lesson(
-                result.output,
+                result.output.to_plan(),
                 source_has_image=has_image,
                 question_text=current.question_text,
             )

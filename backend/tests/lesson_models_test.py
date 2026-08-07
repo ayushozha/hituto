@@ -140,6 +140,19 @@ def test_plain_prose_cannot_be_disguised_as_math() -> None:
         )
 
 
+def test_named_quantities_are_still_maths() -> None:
+    # Rejecting this cost whole lessons: it is notation, not prose.
+    command = scene_command.validate_python(
+        {
+            "id": "note:area",
+            "kind": "math",
+            "layout": "flow",
+            "text": "Area = ½ · base · height = ½ · 6 · 6",
+        }
+    )
+    assert command.kind == "math"
+
+
 def test_constructed_geometry_has_a_square_unit_space() -> None:
     command = scene_command.validate_python(
         {"id": "diagram:circle", "kind": "circle", "space": "diagram", "x": 0.25, "y": 0.5, "radius": 0.1}

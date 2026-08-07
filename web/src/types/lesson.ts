@@ -6,7 +6,7 @@ const space = z.enum(["board", "source", "diagram"]);
 const layout = z.enum(["absolute", "flow", "auto"]);
 const normalized = z.number().min(0).max(1);
 const opacity = z.number().min(0).max(1).default(1);
-const size = z.number().min(0.01).max(0.2).default(0.04);
+const size = z.number().min(0.001).max(0.2).default(0.04);
 
 export const pointSchema = z.object({ x: normalized, y: normalized });
 
@@ -114,8 +114,8 @@ export const graphCurveSchema = z.object({
 
 export const graphMarkerSchema = z.object({
   id: stableId,
-  x: z.number().min(-1000).max(1000),
-  y: z.number().min(-1000).max(1000),
+  x: z.number().min(-1_000_000).max(1_000_000),
+  y: z.number().min(-1_000_000).max(1_000_000),
   label: z.string().max(80).default(""),
   color: z.string().max(24).default("#d93025"),
 });
@@ -127,10 +127,10 @@ export const graphCommandSchema = z.object({
   layout: z.literal("auto").default("auto"),
   curves: z.array(graphCurveSchema).max(6).default([]),
   markers: z.array(graphMarkerSchema).max(12).default([]),
-  x_min: z.number().min(-1000).max(1000),
-  x_max: z.number().min(-1000).max(1000),
-  y_min: z.number().min(-1000).max(1000),
-  y_max: z.number().min(-1000).max(1000),
+  x_min: z.number().min(-1_000_000).max(1_000_000),
+  x_max: z.number().min(-1_000_000).max(1_000_000),
+  y_min: z.number().min(-1_000_000).max(1_000_000),
+  y_max: z.number().min(-1_000_000).max(1_000_000),
   opacity,
 }).superRefine((command, context) => {
   if (!command.curves.length && !command.markers.length) {

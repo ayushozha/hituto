@@ -6,7 +6,7 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from reboot.agents.pydantic_ai import Agent
 
-from lesson_models import ImageQuestionAnalysis, LessonPlan, LessonReview, WorkDiagnosis
+from lesson_models import ImageQuestionAnalysis, LessonDraft, LessonReview, WorkDiagnosis
 
 
 PLANNER_PROMPT = """
@@ -29,14 +29,22 @@ Teaching rules:
 - Use a checkpoint only where a short pause genuinely helps.
 
 Board rules:
+- Each beat has two separate lists. `write` holds what you write on the board: kind='text' for sentences and
+  kind='math' for LaTeX notation. `draw` holds everything else: shapes, arrows, highlights, and the semantic
+  graph, bar_chart, and venn renderers. A label is always a `write` entry — never a zero-length line in `draw`.
+- Every beat must contain at least one `write` entry. A beat that only draws leaves the board silent while you
+  talk, and the student is left with nothing written to look at.
+- Do not emit erase, clear, or camera commands. They are not part of the vocabulary.
 - space='source' targets the uploaded question image. Use it only when a visual location is clear.
 - space='board' targets the full board. For a typed question, reserve y < 0.32 for the source question.
 - space='diagram' targets a reserved square-unit geometry panel. Use it for every newly constructed geometry diagram.
   Equal coordinate differences render as equal physical lengths in this space, so shared endpoints, squares, circles,
   perpendicular segments, and angle marks remain geometrically consistent. Never construct geometry in board space.
-- For ordinary board writing, use kind='text' or kind='math', space='board', layout='flow'. The renderer measures,
-  aligns, wraps, and stacks these notes automatically; x/y/width/height are ignored. Do not manually stagger equations.
-- To highlight a flowing note, emit kind='highlight', space='board', and set target_id to that note's stable id.
+- For ordinary board writing, put kind='text' or kind='math' in `write` with space='board', layout='flow'. The
+  renderer measures, aligns, wraps, and stacks these notes automatically; x/y/width/height are ignored. Do not
+  manually stagger equations.
+- To highlight a flowing note, add kind='highlight' to `draw` with space='board', and set target_id to that
+  note's stable id.
   The target_id must exactly match an earlier kind='text' or kind='math' command. Never target another highlight,
   never target the highlight itself, and omit the highlight if no written note exists yet.
 - Use layout='absolute' only for a short label that must attach to a specific source feature or constructed shape.
@@ -75,8 +83,6 @@ Board rules:
   and shared endpoints rather than drawing almost-touching independent segments. Within space='diagram', both axes
   already use the same scale; reuse exactly the same normalized coordinate values for every shared vertex.
 - Draw or annotate only what advances the current explanation.
-- In a new lesson, erase, clear, and camera commands are forbidden. Every beat must add at least one visible,
-  persistent teaching element such as flowing text, math, a semantic chart, or a diagram annotation.
 """
 
 
@@ -114,8 +120,11 @@ You are adapting an in-progress SAT lesson after the student interrupted. Preser
 Respond to the student's exact confusion first, then continue only as far as useful.
 Choose a genuinely different representation when they say they are confused: equation to diagram, rule to intuition,
 abstract to small numerical example, or passage claim to highlighted evidence. Do not merely paraphrase the prior beat.
-Return a complete replacement LessonPlan containing only the remaining response beats. Reuse stable board IDs when referring
-to existing work, and use erase or clear only when the old marks would mislead the student.
+Return a complete replacement lesson containing only the remaining response beats. Reuse stable board IDs when
+referring to existing work.
+Each beat has two lists: `write` for kind='text' and kind='math' notes, and `draw` for shapes, highlights, and the
+semantic renderers. Every beat needs at least one `write` entry, and a label is always a `write` entry rather than
+a zero-length line. Do not emit erase, clear, or camera commands.
 Use kind='text' or kind='math' with space='board', layout='flow' for ordinary notes. Use at most one semantic visual
 family in the replacement lesson: graph, bar_chart, or venn. A graph uses formulas in curves and actual numeric x/y
 coordinates in markers. A point is never a curve. Use bar_chart only for a discrete probability distribution or a
@@ -252,21 +261,21 @@ VISION_MODEL = _build_model(
 # https://docs.fireworks.ai/api-reference/post-chatcompletions
 VISION_MODEL_SETTINGS = OpenAIChatModelSettings(openai_reasoning_effort="none")
 
-planner_agent: Optional[Agent[None, LessonPlan]] = None
+planner_agent: Optional[Agent[None, LessonDraft]] = None
 reviewer_agent: Optional[Agent[None, LessonReview]] = None
-replanner_agent: Optional[Agent[None, LessonPlan]] = None
+replanner_agent: Optional[Agent[None, LessonDraft]] = None
 diagnostician_agent: Optional[Agent[None, WorkDiagnosis]] = None
 diagnosis_reviewer_agent: Optional[Agent[None, LessonReview]] = None
-vision_planner_agent: Optional[Agent[None, LessonPlan]] = None
+vision_planner_agent: Optional[Agent[None, LessonDraft]] = None
 vision_reviewer_agent: Optional[Agent[None, LessonReview]] = None
-vision_replanner_agent: Optional[Agent[None, LessonPlan]] = None
+vision_replanner_agent: Optional[Agent[None, LessonDraft]] = None
 vision_diagram_agent: Optional[Agent[None, ImageQuestionAnalysis]] = None
 
 if MODEL is not None:
     planner_agent = Agent(
         MODEL,
-        name="sat-lesson-planner-v2",
-        output_type=LessonPlan,
+        name="sat-lesson-planner-v3",
+        output_type=LessonDraft,
         system_prompt=PLANNER_PROMPT,
         output_retries=3,
     )
@@ -279,8 +288,8 @@ if MODEL is not None:
     )
     replanner_agent = Agent(
         MODEL,
-        name="sat-lesson-replanner-v2",
-        output_type=LessonPlan,
+        name="sat-lesson-replanner-v3",
+        output_type=LessonDraft,
         system_prompt=REPLANNER_PROMPT,
         output_retries=3,
     )
@@ -310,8 +319,8 @@ if VISION_MODEL is not None:
     )
     vision_planner_agent = Agent(
         VISION_MODEL,
-        name="sat-image-lesson-planner-v2",
-        output_type=LessonPlan,
+        name="sat-image-lesson-planner-v3",
+        output_type=LessonDraft,
         system_prompt=PLANNER_PROMPT,
         model_settings=VISION_MODEL_SETTINGS,
         output_retries=3,
@@ -326,8 +335,8 @@ if VISION_MODEL is not None:
     )
     vision_replanner_agent = Agent(
         VISION_MODEL,
-        name="sat-image-lesson-replanner-v2",
-        output_type=LessonPlan,
+        name="sat-image-lesson-replanner-v3",
+        output_type=LessonDraft,
         system_prompt=REPLANNER_PROMPT,
         model_settings=VISION_MODEL_SETTINGS,
         output_retries=3,
