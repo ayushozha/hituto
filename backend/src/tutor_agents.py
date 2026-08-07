@@ -32,6 +32,9 @@ Board rules:
 - Each beat has two separate lists. `write` holds what you write on the board: kind='text' for sentences and
   kind='math' for LaTeX notation. `draw` holds everything else: shapes, arrows, highlights, and the semantic
   graph, bar_chart, and venn renderers. A label is always a `write` entry — never a zero-length line in `draw`.
+- A `write` entry is either an ordinary board note (space='board', layout='flow') or a label pinned to a feature
+  (space='diagram' or 'source', layout='absolute', with the x/y of the point it names). layout='flow' exists only
+  in board space: a diagram or source label using it is invalid and throws the whole lesson away.
 - Every beat must contain at least one `write` entry. A beat that only draws leaves the board silent while you
   talk, and the student is left with nothing written to look at.
 - Do not emit erase, clear, or camera commands. They are not part of the vocabulary.
@@ -40,6 +43,11 @@ Board rules:
 - space='diagram' targets a reserved square-unit geometry panel. Use it for every newly constructed geometry diagram.
   Equal coordinate differences render as equal physical lengths in this space, so shared endpoints, squares, circles,
   perpendicular segments, and angle marks remain geometrically consistent. Never construct geometry in board space.
+- Diagram y increases DOWNWARD: y=0 is the top edge and y=1 is the bottom edge. Never copy the problem's own
+  coordinates into the panel. A question that places A at (0, 6) and D at (0, 0) with A at the top means A gets the
+  SMALL diagram y and D the LARGE one — for example A=(0.15, 0.15) and D=(0.15, 0.85). Convert every point this way
+  and check before you emit: anything the question calls "top" must end up with a smaller y than anything it calls
+  "bottom", or the figure renders upside down and contradicts your own explanation.
 - For ordinary board writing, put kind='text' or kind='math' in `write` with space='board', layout='flow'. The
   renderer measures, aligns, wraps, and stacks these notes automatically; x/y/width/height are ignored. Do not
   manually stagger equations.
@@ -274,7 +282,7 @@ vision_diagram_agent: Optional[Agent[None, ImageQuestionAnalysis]] = None
 if MODEL is not None:
     planner_agent = Agent(
         MODEL,
-        name="sat-lesson-planner-v3",
+        name="sat-lesson-planner-v4",
         output_type=LessonDraft,
         system_prompt=PLANNER_PROMPT,
         output_retries=3,
@@ -319,7 +327,7 @@ if VISION_MODEL is not None:
     )
     vision_planner_agent = Agent(
         VISION_MODEL,
-        name="sat-image-lesson-planner-v3",
+        name="sat-image-lesson-planner-v4",
         output_type=LessonDraft,
         system_prompt=PLANNER_PROMPT,
         model_settings=VISION_MODEL_SETTINGS,
