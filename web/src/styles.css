@@ -701,6 +701,11 @@ button { -webkit-tap-highlight-color: transparent; }
 .upload-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .mic-button:hover:not(:disabled) { background: #e2edff; }
 .mic-live { background: #ffe9eb; color: #d83c4d; }
+
+.check-button { background: #f0f3f5; color: #536371; }
+.check-button:hover:not(:disabled) { color: #1a7f37; background: #e8f7ec; }
+.check-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+.check-live { background: #e2f6e8; color: #1a7f37; }
 .mic-live .mic-glyph { animation: breathe 1.2s infinite; }
 
 .mic-glyph {

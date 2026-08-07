@@ -8,12 +8,19 @@ from reboot.aio.tests import Reboot
 from reboot.std.collections.ordered_map.v1.ordered_map import ordered_map_library
 from sat_tutor.v1.tutor_rbt import TutorSession
 
-from lesson_models import ImageQuestionAnalysis, LessonPlan
+from lesson_models import (
+    HighlightCommand,
+    ImageQuestionAnalysis,
+    LessonPlan,
+    TextCommand,
+    WorkDiagnosis,
+)
 from tutor_servicer import (
     TutorMessageServicer,
     TutorSessionServicer,
     _assistant_message_text,
     _compile_diagram,
+    _diagnosis_to_lesson,
     _inject_diagram,
     _normalize_lesson,
 )
@@ -348,6 +355,85 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
         # A negative slice bound used to drop notes from the end of the list
         # rather than keeping none of them.
         self.assertIn("note:form", [command.id for command in lesson.beats[0].commands])
+
+    def test_a_wrong_step_is_marked_without_condemning_the_correct_ones(self) -> None:
+        lesson = _diagnosis_to_lesson(
+            WorkDiagnosis.model_validate(
+                {
+                    "verdict": "incorrect",
+                    "restated_steps": ["3x + 7 = 22", "3x = 29", "x = 9.67"],
+                    "first_error_step": 2,
+                    "error_quote": "3x = 29",
+                    "misconception": "Added 7 to both sides instead of subtracting it.",
+                    "next_hint": "What happens if you subtract 7 from each side?",
+                    "correct_answer": "B) 21",
+                    "confidence": 0.92,
+                }
+            ),
+            "If 3x + 7 = 22, what is 5x - 4?",
+        )
+        notes = {
+            command.id: command
+            for command in lesson.beats[0].commands
+            if isinstance(command, TextCommand)
+        }
+        highlights = [
+            command for command in lesson.beats[0].commands
+            if isinstance(command, HighlightCommand)
+        ]
+
+        # Step 1 was fine and must not be painted as an error.
+        self.assertEqual(notes["work-note-0"].color, "#1a7f37")
+        self.assertEqual(notes["work-note-1"].color, "#d93025")
+        self.assertEqual([item.target_id for item in highlights], ["work-note-1"])
+        self.assertEqual(lesson.final_answer, "B) 21")
+        self.assertIn("subtract 7", lesson.beats[2].spoken_text)
+
+    def test_correct_work_is_confirmed_rather_than_re_solved(self) -> None:
+        lesson = _diagnosis_to_lesson(
+            WorkDiagnosis.model_validate(
+                {
+                    "verdict": "correct",
+                    "restated_steps": ["3x + 7 = 22", "3x = 15", "x = 5"],
+                    "first_error_step": 0,
+                    "next_hint": "Same idea works when the coefficient is a fraction.",
+                    "correct_answer": "B) 21",
+                    "confidence": 0.95,
+                }
+            ),
+            "If 3x + 7 = 22, what is 5x - 4?",
+        )
+
+        self.assertNotIn(
+            "work-error-highlight",
+            [command.id for beat in lesson.beats for command in beat.commands],
+        )
+        self.assertIn("checks out", lesson.beats[0].caption)
+
+    def test_unclear_work_asks_instead_of_accusing(self) -> None:
+        lesson = _diagnosis_to_lesson(
+            WorkDiagnosis.model_validate(
+                {
+                    "verdict": "unclear",
+                    "restated_steps": ["3x + 7 = 22", "??"],
+                    "first_error_step": 0,
+                    "next_hint": "Can you write out what you did between those two lines?",
+                    "correct_answer": "B) 21",
+                    "confidence": 0.3,
+                }
+            ),
+            "If 3x + 7 = 22, what is 5x - 4?",
+        )
+        spoken = " ".join(beat.spoken_text for beat in lesson.beats)
+        captions = " ".join(beat.caption for beat in lesson.beats)
+        command_ids = [command.id for beat in lesson.beats for command in beat.commands]
+
+        # An unreadable submission must ask, never locate a fault: no error
+        # highlight, no "step N is the slip", and no claimed answer.
+        self.assertNotIn("work-error-highlight", command_ids)
+        self.assertNotRegex(captions, r"[Ss]tep \d")
+        self.assertNotIn("B) 21", lesson.final_answer)
+        self.assertIn("write out what you did", spoken)
 
     def test_zero_length_label_segments_fall_back_to_visible_writing(self) -> None:
         payload = _lesson().model_dump(mode="json")

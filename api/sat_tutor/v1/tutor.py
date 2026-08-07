@@ -81,6 +81,19 @@ class ReplanLessonRequest(Model):
     generation: int = Field(tag=5, default=0)
 
 
+class CheckWorkRequest(Model):
+    student_work: str = Field(tag=1, default="")
+
+
+class CheckWorkResponse(Model):
+    generation: int = Field(tag=1, default=0)
+
+
+class ReviewWorkRequest(Model):
+    student_work: str = Field(tag=1, default="")
+    generation: int = Field(tag=2, default=0)
+
+
 class RequestVoiceTokenResponse(Model):
     generation: int = Field(tag=1, default=0)
 
@@ -165,6 +178,16 @@ TutorSessionMethods = Methods(
     ),
     replan_lesson=Workflow(
         request=ReplanLessonRequest,
+        response=None,
+        mcp=None,
+    ),
+    check_work=Transaction(
+        request=CheckWorkRequest,
+        response=CheckWorkResponse,
+        mcp=None,
+    ),
+    review_work=Workflow(
+        request=ReviewWorkRequest,
         response=None,
         mcp=None,
     ),

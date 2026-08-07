@@ -22,8 +22,18 @@ from reboot.std.collections.ordered_map.v1.ordered_map import OrderedMap
 from sat_tutor.v1.tutor import ChatMessage
 from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession
 
-from lesson_models import ImageQuestionAnalysis, LessonPlan, SegmentCommand, TextCommand
+from lesson_models import (
+    HighlightCommand,
+    ImageQuestionAnalysis,
+    LessonPlan,
+    SegmentCommand,
+    TeachingBeat,
+    TextCommand,
+    WorkDiagnosis,
+)
 from tutor_agents import (
+    diagnosis_reviewer_agent,
+    diagnostician_agent,
     llm_configuration_message,
     planner_agent,
     replanner_agent,
@@ -428,6 +438,166 @@ def _inject_diagram(
     return LessonPlan.model_validate(payload)
 
 
+def _note(index: int, text: str, *, color: str = "#1769e0") -> TextCommand:
+    return TextCommand(
+        id=f"work-note-{index}",
+        kind="text",
+        space="board",
+        layout="flow",
+        text=text[:240],
+        color=color,
+        size=0.05,
+    )
+
+
+def _beat(
+    identifier: str,
+    goal: str,
+    spoken: str,
+    caption: str,
+    strategy: str,
+    commands: list[Any],
+) -> TeachingBeat:
+    return TeachingBeat(
+        id=identifier,
+        teaching_goal=goal[:180],
+        spoken_text=(spoken or goal)[:900],
+        caption=caption[:220],
+        strategy=strategy[:80],
+        commands=commands,
+    )
+
+
+def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> LessonPlan:
+    """
+    Turn a verified diagnosis into board work.
+
+    Deterministic on purpose: asking a second model to dress the verdict up as
+    a lesson would give it a chance to contradict the verdict that was just
+    verified.
+    """
+    summary = (question_text.strip() or "The student's submitted working")[:600]
+    steps = [step.strip() for step in diagnosis.restated_steps if step.strip()]
+
+    if diagnosis.verdict == "correct":
+        confirmed: list[Any] = [
+            _note(index, f"{index + 1}. {step}") for index, step in enumerate(steps[:6])
+        ]
+        return LessonPlan(
+            domain="math",
+            question_summary=summary,
+            final_answer=diagnosis.correct_answer,
+            answer_explanation=diagnosis.misconception or "Every step in the submitted work is correct.",
+            confidence=diagnosis.confidence,
+            beats=[
+                _beat(
+                    "work:confirm",
+                    "Confirm the work is correct",
+                    "I checked every step, and this is right. Let me show you what you did well.",
+                    "Your work checks out",
+                    "confirm",
+                    confirmed or [_note(0, "Your working is correct.")],
+                ),
+                _beat(
+                    "work:answer",
+                    "State the verified answer",
+                    f"Your answer, {diagnosis.correct_answer}, is the one I get too. {diagnosis.next_hint}",
+                    f"Answer: {diagnosis.correct_answer}",
+                    "confirm",
+                    [_note(90, f"Answer: {diagnosis.correct_answer}", color="#1a7f37")],
+                ),
+            ],
+        )
+
+    if diagnosis.verdict == "unclear":
+        return LessonPlan(
+            domain="math",
+            question_summary=summary,
+            final_answer="I need one more detail before I can check this.",
+            answer_explanation=diagnosis.misconception or "The submitted work could not be read confidently.",
+            confidence=diagnosis.confidence,
+            beats=[
+                _beat(
+                    "work:unclear",
+                    "Say honestly that the work cannot be judged yet",
+                    "I don't want to guess and tell you something wrong, so let me ask first.",
+                    "I want to make sure I'm following you",
+                    "clarify",
+                    [_note(0, "I couldn't follow every step here.")],
+                ),
+                _beat(
+                    "work:ask",
+                    "Ask the question that would settle it",
+                    diagnosis.next_hint,
+                    diagnosis.next_hint[:220],
+                    "clarify",
+                    [_note(1, diagnosis.next_hint, color="#b26a00")],
+                ),
+            ],
+        )
+
+    error_index = diagnosis.first_error_step - 1
+    recap: list[Any] = []
+    for index, step in enumerate(steps[:6]):
+        correct_so_far = index < error_index
+        recap.append(
+            _note(
+                index,
+                f"{index + 1}. {step}",
+                color="#1a7f37" if correct_so_far else ("#d93025" if index == error_index else "#5f6b76"),
+            )
+        )
+    if error_index < len(recap):
+        recap.append(
+            HighlightCommand(
+                id="work-error-highlight",
+                kind="highlight",
+                space="board",
+                target_id=f"work-note-{error_index}",
+            )
+        )
+
+    good_steps = error_index
+    opening = (
+        f"The first {good_steps} step{'s' if good_steps != 1 else ''} are right — the break comes after that."
+        if good_steps > 0
+        else "Let's look at the very first step together."
+    )
+    return LessonPlan(
+        domain="math",
+        question_summary=summary,
+        final_answer=diagnosis.correct_answer,
+        answer_explanation=diagnosis.misconception or "The submitted work goes wrong at the marked step.",
+        confidence=diagnosis.confidence,
+        beats=[
+            _beat(
+                "work:recap",
+                "Show the student their own steps",
+                f"Here's what you did. {opening}",
+                "Here's your working",
+                "diagnose",
+                recap or [_note(0, "I read through your working.")],
+            ),
+            _beat(
+                "work:error",
+                "Point at the first step that breaks",
+                f"Step {diagnosis.first_error_step} is where it goes wrong. {diagnosis.misconception}",
+                f"Step {diagnosis.first_error_step} is the first slip",
+                "diagnose",
+                [_note(80, f"Step {diagnosis.first_error_step}: {diagnosis.error_quote}"[:240], color="#d93025")],
+            ),
+            _beat(
+                "work:hint",
+                "Hand back the next move without solving it",
+                diagnosis.next_hint,
+                "Try this next",
+                "hint",
+                [_note(81, diagnosis.next_hint, color="#b26a00")],
+            ),
+        ],
+    )
+
+
 def _voice_associated_data(session_id: str, generation: int) -> bytes:
     return make_associated_data(
         session_id=session_id,
@@ -669,6 +839,155 @@ class TutorSessionServicer(TutorSession.Servicer):
             generation=generation,
         )
         return TutorSession.StartReplanResponse(generation=generation)
+
+    async def check_work(
+        self,
+        context: TransactionContext,
+        request: TutorSession.CheckWorkRequest,
+    ) -> TutorSession.CheckWorkResponse:
+        self.state.generation += 1
+        generation = self.state.generation
+        self.state.status = "thinking"
+        self.state.error_message = ""
+        self.state.last_student_message = request.student_work.strip()[:400]
+        await self._append_user_message(
+            context,
+            generation=generation,
+            text=f"Here's my working:\n\n{request.student_work.strip()}",
+            source_kind="work",
+        )
+        await self.ref().schedule().review_work(
+            context,
+            student_work=request.student_work,
+            generation=generation,
+        )
+        return TutorSession.CheckWorkResponse(generation=generation)
+
+    @classmethod
+    async def review_work(
+        cls,
+        context: WorkflowContext,
+        request: TutorSession.ReviewWorkRequest,
+    ) -> None:
+        student_work = request.student_work.strip()
+        if not student_work:
+            await cls._store_lesson_error(
+                context,
+                request.generation,
+                "Type the steps you tried and I'll check them.",
+                "Store empty work error",
+            )
+            return
+
+        diagnostician = diagnostician_agent
+        diagnosis_reviewer = diagnosis_reviewer_agent
+        if diagnostician is None or diagnosis_reviewer is None:
+            await cls._store_lesson_error(
+                context,
+                request.generation,
+                llm_configuration_message(),
+                "Store diagnostician configuration error",
+            )
+            return
+
+        # Read once, memoized, so a replay builds the identical prompt.
+        current = await TutorSession.ref().per_workflow("Read question for work check").read(context)
+        question_text = current.question_text.strip() or "The student did not paste the original question."
+
+        try:
+            prompt = (
+                "Diagnose this student's own working.\n\n"
+                f"Question:\n{question_text}\n\n"
+                f"Student's work:\n{student_work}"
+            )
+            diagnosed = await diagnostician.run(context, prompt)
+            diagnosis: WorkDiagnosis = diagnosed.output
+
+            review_prompt = (
+                "Verify this diagnosis of the student's work.\n\n"
+                f"Question:\n{question_text}\n\n"
+                f"Student's work:\n{student_work}\n\n"
+                f"Proposed diagnosis JSON:\n{diagnosis.model_dump_json()}"
+            )
+            reviewed = await diagnosis_reviewer.run(context, review_prompt)
+            if not reviewed.output.approved:
+                issues = "; ".join(reviewed.output.issues[:3]) or "the diagnosis could not be verified"
+                logger.warning("Initial work diagnosis was rejected: %s", issues)
+                corrected = await diagnostician.run(
+                    context,
+                    (
+                        "Your diagnosis was rejected by an independent verifier. Produce one corrected "
+                        "replacement diagnosis that resolves every issue. If the issues show you wrongly "
+                        "flagged a correct step, return verdict='correct'. If you cannot judge the work "
+                        "confidently, return verdict='unclear'.\n\n"
+                        f"Question:\n{question_text}\n\n"
+                        f"Student's work:\n{student_work}\n\n"
+                        f"Verifier issues:\n{issues}\n\n"
+                        f"Rejected diagnosis:\n{diagnosis.model_dump_json()}"
+                    ),
+                    variant="diagnosis-correction",
+                )
+                diagnosis = corrected.output
+                rereviewed = await diagnosis_reviewer.run(
+                    context,
+                    (
+                        "Verify this corrected diagnosis. Approve only if every prior issue is resolved.\n\n"
+                        f"Question:\n{question_text}\n\n"
+                        f"Student's work:\n{student_work}\n\n"
+                        f"Prior issues:\n{issues}\n\n"
+                        f"Corrected diagnosis JSON:\n{diagnosis.model_dump_json()}"
+                    ),
+                    variant="diagnosis-correction-review",
+                )
+                if not rereviewed.output.approved:
+                    logger.warning(
+                        "Corrected work diagnosis was rejected: %s",
+                        "; ".join(rereviewed.output.issues[:3]),
+                    )
+                    # Never fall back to asserting an unverified verdict: a
+                    # wrong "you made a mistake" costs more than no feedback.
+                    await cls._store_lesson_error(
+                        context,
+                        request.generation,
+                        "I couldn’t check this confidently enough to tell you where it goes wrong. "
+                        "Paste the original question with your steps and I’ll try again.",
+                        "Store unverified diagnosis",
+                    )
+                    return
+
+            lesson = _normalize_lesson(
+                _diagnosis_to_lesson(diagnosis, current.question_text),
+                question_text=current.question_text,
+            )
+            lesson_json = lesson.model_dump_json()
+
+            async def store_diagnosis(state: Any) -> None:
+                if state.generation != request.generation:
+                    return
+                state.lesson_json = lesson_json
+                state.status = "ready"
+                state.error_message = ""
+                state.revision += 1
+
+            await TutorSession.ref().per_workflow("Store verified diagnosis").write(
+                context,
+                store_diagnosis,
+            )
+            await cls._append_assistant_message(
+                context,
+                request.generation,
+                _assistant_message_text(lesson),
+                lesson_json,
+                "ready",
+                "Append work diagnosis reply",
+            )
+        except Exception as error:
+            await cls._store_lesson_error(
+                context,
+                request.generation,
+                _safe_error(error),
+                "Store work diagnosis error",
+            )
 
     @classmethod
     async def prepare_lesson(

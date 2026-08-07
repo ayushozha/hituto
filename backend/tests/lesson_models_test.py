@@ -1,10 +1,48 @@
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
-from lesson_models import LessonPlan, SceneCommand
+from lesson_models import LessonPlan, SceneCommand, WorkDiagnosis
 
 
 scene_command: TypeAdapter[SceneCommand] = TypeAdapter(SceneCommand)
+
+
+def _diagnosis(**overrides: object) -> dict:
+    payload: dict = {
+        "verdict": "incorrect",
+        "restated_steps": ["3x + 7 = 22", "3x = 29", "x = 9.67"],
+        "first_error_step": 2,
+        "error_quote": "3x = 29",
+        "misconception": "Added 7 to both sides instead of subtracting it.",
+        "next_hint": "What do you get if you take 7 away from each side?",
+        "correct_answer": "B) 21",
+        "confidence": 0.9,
+    }
+    payload.update(overrides)
+    return payload
+
+
+def test_an_incorrect_verdict_must_locate_the_error() -> None:
+    with pytest.raises(ValidationError):
+        WorkDiagnosis.model_validate(_diagnosis(first_error_step=0))
+
+
+def test_a_correct_verdict_cannot_also_flag_a_step() -> None:
+    # The shape forbids expressing "your work is right, and step 2 is wrong".
+    with pytest.raises(ValidationError):
+        WorkDiagnosis.model_validate(_diagnosis(verdict="correct"))
+
+
+def test_the_flagged_step_must_point_at_a_real_step() -> None:
+    with pytest.raises(ValidationError):
+        WorkDiagnosis.model_validate(_diagnosis(first_error_step=9))
+
+
+def test_an_unclear_verdict_needs_no_error_step() -> None:
+    diagnosis = WorkDiagnosis.model_validate(
+        _diagnosis(verdict="unclear", first_error_step=0, error_quote="")
+    )
+    assert diagnosis.verdict == "unclear"
 
 
 def test_scene_command_rejects_out_of_bounds_coordinate() -> None:

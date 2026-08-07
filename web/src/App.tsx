@@ -225,6 +225,9 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   const [selectedImage, setSelectedImage] = useState<SelectedQuestionImage>();
   const [activeBeat, setActiveBeat] = useState(-1);
   const [resumeAt, setResumeAt] = useState<number>();
+  // When set, the composer submits the student's own working for diagnosis
+  // instead of asking the tutor to solve something.
+  const [checking, setChecking] = useState(false);
 
   const generation = useRef(0);
   const lessonRequest = useRef(0);
@@ -486,13 +489,49 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     await playLesson(parsed, 0, true);
   }
 
+  async function checkWork(work: string): Promise<void> {
+    if (!work.trim()) return;
+    const requestId = ++lessonRequest.current;
+    listener.current.stop();
+    interruptTeaching("thinking");
+    setError("");
+    setVoiceNote("");
+    setCaption("I’m reading your steps and checking them against my own working…");
+    const { response, aborted } = await session.mutators.checkWork(
+      { studentWork: work.trim() },
+      { idempotencyKey: crypto.randomUUID() },
+    );
+    if (aborted || !response) {
+      if (lessonRequest.current !== requestId) return;
+      setState("error");
+      setError(abortedMessage(aborted));
+      return;
+    }
+    if (lessonRequest.current !== requestId) return;
+    const completed = await waitForLesson(response.generation, requestId);
+    if (!completed || lessonRequest.current !== requestId) return;
+    if (completed.status === "error") {
+      setState("error");
+      setError(completed.errorMessage || "The tutor could not check this working.");
+      return;
+    }
+    const parsed = parseLesson(completed.lessonJson);
+    if (!parsed) {
+      setState("error");
+      setError("The feedback could not be validated.");
+      return;
+    }
+    await playLesson(parsed, 0, true);
+  }
+
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
     if (state === "thinking") return;
     const message = draft;
     if (!message.trim() && !selectedImage) return;
     setDraft("");
-    if (lesson) await askFollowup(message);
+    if (checking) await checkWork(message);
+    else if (lesson) await askFollowup(message);
     else await startLesson(message);
   }
 
@@ -583,9 +622,11 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     await session.mutators.reset(undefined, { idempotencyKey: crypto.randomUUID() });
   }
 
-  const composerPlaceholder = lesson
-    ? "Ask why, interrupt, or request a different explanation…"
-    : "Ask any SAT question, paste the choices, or upload an image…";
+  const composerPlaceholder = checking
+    ? "Type the steps you tried, one per line — I’ll find the first one that breaks…"
+    : lesson
+      ? "Ask why, interrupt, or request a different explanation…"
+      : "Ask any SAT question, paste the choices, or upload an image…";
   const currentGeneration = snapshot?.generation ?? 0;
   const hasCurrentAssistant = messages.some(
     (message) => message.role === "assistant" && message.generation === currentGeneration,
@@ -750,15 +791,33 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
             <span className="mic-glyph" />
           </button>
           <button
+            className={`icon-button check-button ${checking ? "check-live" : ""}`}
+            type="button"
+            aria-pressed={checking}
+            aria-label="Check my own working"
+            title="Check my own working"
+            onClick={() => setChecking((current) => !current)}
+            disabled={state === "thinking"}
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M4 12.5 9 17.5 20 6.5" />
+            </svg>
+          </button>
+          <button
             className="teach-button"
             type="submit"
-            disabled={state === "thinking" || (lesson ? !draft.trim() : (!draft.trim() && !selectedImage))}
+            disabled={state === "thinking" || (lesson && !checking ? !draft.trim() : (!draft.trim() && !selectedImage))}
           >
-            {state === "thinking" ? "Thinking…" : "Send"}
+            {state === "thinking" ? "Thinking…" : checking ? "Check my work" : "Send"}
           </button>
         </div>
         <div className="composer-hint">
-          {voiceNote || (lesson ? "Interrupt at any time—type or use the microphone." : "Questions, answer choices, and clear PNG/JPEG images are supported.")}
+          {voiceNote
+            || (checking
+              ? "Paste your own steps. I’ll mark the first one that breaks, not solve it for you."
+              : lesson
+                ? "Interrupt at any time—type or use the microphone."
+                : "Questions, answer choices, and clear PNG/JPEG images are supported.")}
         </div>
       </form>
     </main>

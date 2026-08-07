@@ -318,6 +318,35 @@ class LessonReview(BaseModel):
     issues: list[str] = Field(default_factory=list, max_length=8)
 
 
+class WorkDiagnosis(BaseModel):
+    """A verdict on the student's own working, not a solution from scratch."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    verdict: Literal["correct", "incorrect", "unclear"]
+    restated_steps: list[str] = Field(default_factory=list, max_length=12)
+    # 1-indexed into restated_steps; 0 means "no step is wrong".
+    first_error_step: int = Field(default=0, ge=0, le=12)
+    error_quote: str = Field(default="", max_length=200)
+    misconception: str = Field(default="", max_length=400)
+    next_hint: str = Field(min_length=3, max_length=400)
+    correct_answer: str = Field(min_length=1, max_length=300)
+    confidence: float = Field(ge=0.0, le=1.0)
+
+    @model_validator(mode="after")
+    def verdict_and_error_step_agree(self) -> "WorkDiagnosis":
+        # Telling a student their correct step is wrong is the most damaging
+        # thing this feature can do, so the shape itself forbids the states
+        # that would express it incoherently.
+        if self.verdict == "incorrect" and self.first_error_step == 0:
+            raise ValueError("an 'incorrect' verdict must name the first wrong step")
+        if self.verdict != "incorrect" and self.first_error_step != 0:
+            raise ValueError("only an 'incorrect' verdict may name a wrong step")
+        if self.first_error_step > len(self.restated_steps):
+            raise ValueError("first_error_step must point at a restated step")
+        return self
+
+
 class DiagramSpecBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
