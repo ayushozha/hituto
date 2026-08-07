@@ -388,6 +388,29 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([item.target_id for item in highlights], ["work-note-1"])
         self.assertEqual(lesson.final_answer, "B) 21")
         self.assertIn("subtract 7", lesson.beats[2].spoken_text)
+        # One good step reads "step is", not "1 step are".
+        self.assertIn("The first step is right", lesson.beats[0].spoken_text)
+
+    def test_step_count_copy_agrees_with_itself(self) -> None:
+        def opening(first_error_step: int) -> str:
+            return _diagnosis_to_lesson(
+                WorkDiagnosis.model_validate(
+                    {
+                        "verdict": "incorrect",
+                        "restated_steps": ["a = 1", "b = 2", "c = 3", "d = 4"],
+                        "first_error_step": first_error_step,
+                        "error_quote": "x",
+                        "next_hint": "Try again from there.",
+                        "correct_answer": "7",
+                        "confidence": 0.8,
+                    }
+                ),
+                "question",
+            ).beats[0].spoken_text
+
+        self.assertIn("very first step", opening(1))
+        self.assertIn("The first step is right", opening(2))
+        self.assertIn("The first 2 steps are right", opening(3))
 
     def test_correct_work_is_confirmed_rather_than_re_solved(self) -> None:
         lesson = _diagnosis_to_lesson(

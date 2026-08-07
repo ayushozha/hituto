@@ -558,11 +558,12 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
         )
 
     good_steps = error_index
-    opening = (
-        f"The first {good_steps} step{'s' if good_steps != 1 else ''} are right — the break comes after that."
-        if good_steps > 0
-        else "Let's look at the very first step together."
-    )
+    if good_steps == 0:
+        opening = "Let's look at the very first step together."
+    elif good_steps == 1:
+        opening = "The first step is right — the break comes after that."
+    else:
+        opening = f"The first {good_steps} steps are right — the break comes after that."
     return LessonPlan(
         domain="math",
         question_summary=summary,
