@@ -1,0 +1,32 @@
+# Reboot state and generated code.
+.rbt/
+backend/api/
+web/src/api/
+
+# Secrets.
+.env
+
+# Python.
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+
+# Frontend.
+web/node_modules/
+web/dist/
+web/.vite/
+
+# Test output.
+coverage/
+test-results/
+playwright-report/
+.playwright-cli/
+output/
+.fireworks-training-runs/
+
+# TypeScript/Vite build artifacts.
+*.tsbuildinfo
+web/vite.config.js
+web/vite.config.d.ts

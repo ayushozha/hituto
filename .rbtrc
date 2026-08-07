@@ -1,0 +1,14 @@
+generate api/
+generate --python=backend/api/
+generate --react=web/src/api
+generate --web=web/src/api
+
+dev run --watch=backend/api/**/*.py
+dev run --watch=backend/src/**/*.py
+dev run --python
+dev run --application-name=sat-live-tutor
+dev expunge --application-name=sat-live-tutor
+dev run --env-file=.env
+dev run --frontend-root-path=web
+dev run --frontend-host=http://localhost:5173
+dev run --application=backend/src/main.py

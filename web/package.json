@@ -1,0 +1,34 @@
+{
+  "name": "sat-live-tutor-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "1.10.1",
+    "@deepgram/sdk": "5.7.0",
+    "@reboot-dev/reboot-api": "1.4.0",
+    "@reboot-dev/reboot-react": "1.4.0",
+    "katex": "0.16.22",
+    "mathjs": "^15.2.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "4.0.17"
+  },
+  "devDependencies": {
+    "@types/katex": "0.16.7",
+    "@types/node": "22.15.30",
+    "@types/react": "18.3.24",
+    "@types/react-dom": "18.3.7",
+    "@vitejs/plugin-react": "4.7.0",
+    "jsdom": "26.1.0",
+    "typescript": "5.9.2",
+    "vite": "6.4.3",
+    "vitest": "3.2.7"
+  }
+}
