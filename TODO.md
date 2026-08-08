@@ -63,7 +63,11 @@
       durations and outcomes with student content withheld.
 - [ ] Ship those events somewhere that computes percentiles and alerts. They are only
       written to stdout today.
-- [ ] Add retry/circuit-breaker product behavior for provider outages.
+- [x] Stop swallowing transient provider failures. Reboot already replays a workflow step
+      that raises, reusing memoized results for completed steps; a blanket `except`
+      defeated it and turned a passing 503 into a dead lesson.
+- [ ] Bound the retry. A total provider outage now leaves the student in 'thinking'
+      indefinitely, because nothing gives up. Needs a replay-safe deadline.
 - [x] Create a representative SAT Math and Reading & Writing evaluation set.
 - [ ] Set and meet an accuracy threshold before marketing answer reliability. The gate exists
       (`run_eval.py --min-accuracy`); the number has not been chosen.

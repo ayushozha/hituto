@@ -159,12 +159,15 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
                 return snapshot
 
     async def test_a_runaway_account_is_capped_without_an_error_page(self) -> None:
-        # A lesson is four to six provider calls, so the burst limit is the
-        # only thing between one loop and an uncapped bill.
+        # Spend the allowance directly rather than by running real lessons:
+        # eight lessons take longer than the burst window, so the window would
+        # reset mid-test and the assertion would depend on the clock.
+        internal = self.rbt.create_external_context(
+            name=f"internal-{self.id()}", app_internal=True
+        )
+        ledger = UsageLedger.ref(f"student-{self.id()}")
         for _ in range(tutor_servicer.BURST_LIMIT):
-            await self.session.start_lesson(
-                self.context, question_text="What is 2 + 2?", source_kind="text"
-            )
+            await ledger.consume(internal, kind="lesson")
 
         blocked = await self.session.start_lesson(
             self.context, question_text="What is 2 + 2?", source_kind="text"

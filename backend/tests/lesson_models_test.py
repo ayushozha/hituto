@@ -1,3 +1,4 @@
+import httpx
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -173,3 +174,29 @@ def test_lesson_plan_requires_multiple_beats() -> None:
                 "beats": [],
             }
         )
+
+
+def test_a_provider_having_a_bad_minute_is_retryable() -> None:
+    from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
+
+    from tutor_servicer import _is_transient
+
+    # Reboot retries a workflow step that raises, so these must not be
+    # swallowed into a permanent student-facing error.
+    assert _is_transient(ModelHTTPError(status_code=503, model_name="m"))
+    assert _is_transient(ModelHTTPError(status_code=429, model_name="m"))
+    assert _is_transient(httpx.ConnectError("refused"))
+    assert _is_transient(httpx.ReadTimeout("slow"))
+    assert _is_transient(ModelAPIError(model_name="m", message="never landed"))
+
+
+def test_a_bad_request_is_not_retried_forever() -> None:
+    from pydantic_ai.exceptions import ModelHTTPError, UserError
+
+    from tutor_servicer import _is_transient
+
+    # Retrying these just burns the student's time and the account's quota.
+    assert not _is_transient(ModelHTTPError(status_code=400, model_name="m"))
+    assert not _is_transient(ModelHTTPError(status_code=401, model_name="m"))
+    assert not _is_transient(UserError("bad output type"))
+    assert not _is_transient(ValueError("Upload a PNG or JPEG image"))

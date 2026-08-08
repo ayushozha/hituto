@@ -12,6 +12,7 @@ from typing import Any, Sequence, Union
 import httpx
 import rbt.v1alpha1.errors_pb2 as errors
 from pydantic_ai import BinaryContent
+from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 from pydantic_ai.messages import UserContent
 from rbt.std.ciphertext.v1.ciphertext_rbt import Ciphertext
 from reboot.aio.auth.authorizers import (
@@ -98,6 +99,28 @@ def _source_content(
             vendor_metadata={"detail": "high"},
         ),
     ]
+
+
+# Statuses worth trying again: rate limits, timeouts, and anything the
+# provider says is its own fault.
+RETRYABLE_STATUSES = {408, 409, 425, 429}
+
+
+def _is_transient(error: Exception) -> bool:
+    """
+    Is this the provider having a bad minute, or the request being wrong?
+
+    Reboot already retries: a workflow step that raises is replayed, and every
+    completed step returns its memoized result instead of re-running. Catching
+    everything defeated that and turned a passing 503 into a dead lesson. Only
+    permanent failures should reach the student.
+    """
+    if isinstance(error, ModelHTTPError):
+        return error.status_code in RETRYABLE_STATUSES or error.status_code >= 500
+    if isinstance(error, (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)):
+        return True
+    # ModelAPIError that is not an HTTP error means the request never landed.
+    return isinstance(error, ModelAPIError)
 
 
 def _safe_error(error: Exception) -> str:
@@ -1182,6 +1205,17 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append work diagnosis reply",
             )
         except Exception as error:
+            if _is_transient(error):
+                # Let it out: Reboot replays the workflow and the completed
+                # steps return memoized results, so only this call runs again.
+                log_event(
+                    "provider.transient",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="diagnosis",
+                    error=type(error).__name__,
+                )
+                raise
             await cls._store_lesson_error(
                 context,
                 request.generation,
@@ -1406,6 +1440,17 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append verified assistant reply",
             )
         except Exception as error:
+            if _is_transient(error):
+                # Let it out: Reboot replays the workflow and the completed
+                # steps return memoized results, so only this call runs again.
+                log_event(
+                    "provider.transient",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="lesson",
+                    error=type(error).__name__,
+                )
+                raise
             await cls._store_lesson_error(
                 context,
                 request.generation,
@@ -1502,6 +1547,17 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append follow-up assistant reply",
             )
         except Exception as error:
+            if _is_transient(error):
+                # Let it out: Reboot replays the workflow and the completed
+                # steps return memoized results, so only this call runs again.
+                log_event(
+                    "provider.transient",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="replan",
+                    error=type(error).__name__,
+                )
+                raise
             await cls._store_lesson_error(
                 context,
                 request.generation,
