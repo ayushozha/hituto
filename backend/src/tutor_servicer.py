@@ -67,6 +67,9 @@ MAX_DIAGRAM_GEOMETRY = 9
 # same vertex. Roughly 1% of the panel: tight enough not to merge distinct
 # features, loose enough to close a hand-estimated corner.
 VERTEX_SNAP_TOLERANCE = 0.012
+# How long a lesson may keep retrying a failing provider before the student is
+# told plainly instead of watching "thinking" forever.
+PROVIDER_DEADLINE = timedelta(minutes=int(os.environ.get("PROVIDER_DEADLINE_MINUTES", "5")))
 # Erasure runs in one transaction, so it works in pages.
 FORGET_PAGE = 100
 # A lesson costs four to six provider calls, so an uncapped account is an
@@ -125,6 +128,22 @@ def _is_transient(error: Exception) -> bool:
         return True
     # ModelAPIError that is not an HTTP error means the request never landed.
     return isinstance(error, ModelAPIError)
+
+
+async def _past_deadline(context: WorkflowContext, alias: str) -> bool:
+    """
+    Has this workflow been retrying longer than a student should wait?
+
+    The start time is captured inside `at_least_once` so every replay reads the
+    same value — a bare clock read would restart the clock on each attempt and
+    the deadline would never arrive. The comparison itself is deliberately not
+    memoized: that is the part that must see the current time.
+    """
+    async def now_ms() -> int:
+        return int(time.time() * 1000)
+
+    started_ms = await at_least_once(f"{alias} deadline start", context, now_ms)
+    return (time.time() * 1000 - started_ms) > PROVIDER_DEADLINE.total_seconds() * 1000
 
 
 def _might_be_a_topic(text: str) -> bool:
@@ -1333,7 +1352,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append work diagnosis reply",
             )
         except Exception as error:
-            if _is_transient(error):
+            if _is_transient(error) and not await _past_deadline(context, "diagnosis"):
                 # Let it out: Reboot replays the workflow and the completed
                 # steps return memoized results, so only this call runs again.
                 log_event(
@@ -1344,6 +1363,22 @@ class TutorSessionServicer(TutorSession.Servicer):
                     error=type(error).__name__,
                 )
                 raise
+            if _is_transient(error):
+                log_event(
+                    "provider.gave_up",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="diagnosis",
+                    error=type(error).__name__,
+                )
+                await cls._store_lesson_error(
+                    context,
+                    request.generation,
+                    "I couldn't reach the service that writes lessons, and I've been trying "
+                    "for a while. Please try again in a few minutes.",
+                    "Store work diagnosis error",
+                )
+                return
             await cls._store_lesson_error(
                 context,
                 request.generation,
@@ -1595,7 +1630,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append verified assistant reply",
             )
         except Exception as error:
-            if _is_transient(error):
+            if _is_transient(error) and not await _past_deadline(context, "lesson"):
                 # Let it out: Reboot replays the workflow and the completed
                 # steps return memoized results, so only this call runs again.
                 log_event(
@@ -1606,6 +1641,22 @@ class TutorSessionServicer(TutorSession.Servicer):
                     error=type(error).__name__,
                 )
                 raise
+            if _is_transient(error):
+                log_event(
+                    "provider.gave_up",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="lesson",
+                    error=type(error).__name__,
+                )
+                await cls._store_lesson_error(
+                    context,
+                    request.generation,
+                    "I couldn't reach the service that writes lessons, and I've been trying "
+                    "for a while. Please try again in a few minutes.",
+                    "Store lesson generation error",
+                )
+                return
             await cls._store_lesson_error(
                 context,
                 request.generation,
@@ -1732,7 +1783,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                 "Append follow-up assistant reply",
             )
         except Exception as error:
-            if _is_transient(error):
+            if _is_transient(error) and not await _past_deadline(context, "replan"):
                 # Let it out: Reboot replays the workflow and the completed
                 # steps return memoized results, so only this call runs again.
                 log_event(
@@ -1743,6 +1794,22 @@ class TutorSessionServicer(TutorSession.Servicer):
                     error=type(error).__name__,
                 )
                 raise
+            if _is_transient(error):
+                log_event(
+                    "provider.gave_up",
+                    session=context.state_id,
+                    generation=request.generation,
+                    stage="replan",
+                    error=type(error).__name__,
+                )
+                await cls._store_lesson_error(
+                    context,
+                    request.generation,
+                    "I couldn't reach the service that writes lessons, and I've been trying "
+                    "for a while. Please try again in a few minutes.",
+                    "Store follow-up error",
+                )
+                return
             await cls._store_lesson_error(
                 context,
                 request.generation,

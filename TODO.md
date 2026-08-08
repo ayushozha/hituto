@@ -61,6 +61,12 @@
       DAILY_CHECK_LIMIT, and BURST_LIMIT.
 - [ ] Add automated abuse protection beyond per-account limits (a single actor with many
       accounts is still uncapped).
+- [ ] Resolve two high-severity transitive advisories introduced with Excalidraw:
+      `lodash-es` (code injection via `_.template`, reached through the mermaid parser) and
+      `nanoid` (predictable ids / non-terminating generation). `npm audit fix` does nothing;
+      its suggested fix downgrades Excalidraw to 0.17.6, which is a semver-major step
+      backwards and breaks the integration. Options are upstream, or dropping the
+      whiteboard. Do not ship to paying users without deciding.
 - [ ] Add billing, subscription status, and entitlement checks.
 - [ ] Replace private-beta pricing copy with validated plans only after product pricing is decided.
 - [ ] Add an operator view for usage, errors, model spend, and Deepgram spend.
@@ -71,8 +77,9 @@
 - [x] Stop swallowing transient provider failures. Reboot already replays a workflow step
       that raises, reusing memoized results for completed steps; a blanket `except`
       defeated it and turned a passing 503 into a dead lesson.
-- [ ] Bound the retry. A total provider outage now leaves the student in 'thinking'
-      indefinitely, because nothing gives up. Needs a replay-safe deadline.
+- [x] Bound the retry. A provider outage now gives up after PROVIDER_DEADLINE_MINUTES
+      (default 5) and says so, instead of leaving the student watching "thinking". The start
+      time is captured inside `at_least_once` so replays share one clock.
 - [x] Create a representative SAT Math and Reading & Writing evaluation set.
 - [ ] Set and meet an accuracy threshold before marketing answer reliability. The gate exists
       (`run_eval.py --min-accuracy`); the number has not been chosen.

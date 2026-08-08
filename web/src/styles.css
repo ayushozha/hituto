@@ -854,6 +854,11 @@ button { -webkit-tap-highlight-color: transparent; }
    its touch UI. */
 .board-panel .whiteboard-canvas { flex: 1 1 auto; height: auto; min-height: 520px; }
 .board-panel .whiteboard.is-collapsed { flex: 0 0 auto; border-bottom: 1px solid #e8ecef; }
+
+/* Selecting a step pops Excalidraw's properties island — 200x518 of stroke
+   colour, font family and layer controls — over the writing area. A student
+   noting down steps needs none of it. */
+.whiteboard .App-menu__left { display: none; }
 .board-panel .whiteboard.is-collapsed .whiteboard-canvas { flex: 0 0 auto; }
 
 .whiteboard {
