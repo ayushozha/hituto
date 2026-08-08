@@ -243,6 +243,8 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   // the textarea never overwrite each other.
   const [boardWork, setBoardWork] = useState("");
   const [boardCollapsed, setBoardCollapsed] = useState(false);
+  // A pinned past explanation, or undefined for "whatever is live".
+  const [shownLesson, setShownLesson] = useState<string>();
 
   const generation = useRef(0);
   const lessonRequest = useRef(0);
@@ -652,6 +654,13 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
       ? "Ask why, interrupt, or request a different explanation…"
       : "Ask any SAT question, paste the choices, or upload an image…";
   const currentGeneration = snapshot?.generation ?? 0;
+  const pinned = shownLesson
+    ? messages.find((message) => message.id === shownLesson)
+    : undefined;
+  const pinnedLesson = pinned?.lessonJson ? parseLesson(pinned.lessonJson) : undefined;
+  const panelIsLive = !pinnedLesson;
+  const panelLesson = pinnedLesson ?? lesson;
+  const panelScene = pinnedLesson ? completedScene(pinnedLesson) : scene;
   const hasCurrentAssistant = messages.some(
     (message) => message.role === "assistant" && message.generation === currentGeneration,
   );
@@ -669,6 +678,8 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
         </div>
       </header>
 
+      <div className="workspace">
+        <div className="chat-column">
       <section className="chat-thread" aria-label="SAT tutor conversation">
         {messages.length === 0 && state === "idle" && (
           <div className="chat-welcome">
@@ -708,29 +719,14 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
                 <MessageText text={message.text} />
 
                 {visibleLesson && hasTeachingActivity(visibleLesson) && (
-                  <div className="chat-activity" aria-label="Generated teaching activity">
-                    <div className="chat-activity-header">
-                      <span><i /> Live visual explanation</span>
-                      {isActiveActivity && (
-                        <div className="chat-activity-controls" aria-label="Lesson controls">
-                          <button type="button" onClick={() => void togglePause()} disabled={state === "thinking" || state === "listening"}>
-                            {state === "paused" ? "Continue" : "Pause"}
-                          </button>
-                          <button type="button" onClick={() => void replay()} disabled={state === "thinking" || state === "listening"}>Replay</button>
-                        </div>
-                      )}
-                    </div>
-                    <TeachingCanvas
-                      questionText={questionText || snapshot?.questionText || visibleLesson.question_summary}
-                      sourceImageUrl={isActiveActivity ? selectedImage?.dataUrl : undefined}
-                      sourceImageSize={isActiveActivity && selectedImage ? { width: selectedImage.width, height: selectedImage.height } : undefined}
-                      commands={activityScene.elements}
-                      camera={activityScene.camera}
-                      caption={isActiveActivity ? caption : `Answer: ${visibleLesson.final_answer}`}
-                      tutorState={isActiveActivity ? state : "done"}
-                      errorMessage={isActiveActivity ? error : ""}
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    className={`activity-chip ${isActiveActivity ? "is-active" : ""}`}
+                    onClick={() => setShownLesson(isActiveActivity ? undefined : message.id)}
+                  >
+                    <i />
+                    {isActiveActivity ? "Showing on the board" : "View this explanation"}
+                  </button>
                 )}
               </div>
             </article>
@@ -871,6 +867,45 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
                 : "Questions, answer choices, and clear PNG/JPEG images are supported.")}
         </div>
       </form>
+        </div>
+
+        <aside className="board-panel" aria-label="Teaching board">
+          {panelLesson ? (
+            <>
+              <div className="board-panel-header">
+                <span><i /> {panelIsLive ? "Live visual explanation" : "Earlier explanation"}</span>
+                <div className="board-panel-controls">
+                  {panelIsLive ? (
+                    <>
+                      <button type="button" onClick={() => void togglePause()} disabled={state === "thinking" || state === "listening"}>
+                        {state === "paused" ? "Continue" : "Pause"}
+                      </button>
+                      <button type="button" onClick={() => void replay()} disabled={state === "thinking" || state === "listening"}>Replay</button>
+                    </>
+                  ) : (
+                    <button type="button" onClick={() => setShownLesson(undefined)}>Back to live</button>
+                  )}
+                </div>
+              </div>
+              <TeachingCanvas
+                questionText={panelIsLive ? (questionText || snapshot?.questionText || panelLesson.question_summary) : panelLesson.question_summary}
+                sourceImageUrl={panelIsLive ? selectedImage?.dataUrl : undefined}
+                sourceImageSize={panelIsLive && selectedImage ? { width: selectedImage.width, height: selectedImage.height } : undefined}
+                commands={panelScene.elements}
+                camera={panelScene.camera}
+                caption={panelIsLive ? caption : `Answer: ${panelLesson.final_answer}`}
+                tutorState={panelIsLive ? state : "done"}
+                errorMessage={panelIsLive ? error : ""}
+              />
+            </>
+          ) : (
+            <div className="board-empty">
+              <div className="empty-board-icon"><span>2x + 3 = 11</span><i /></div>
+              <p>The board opens here when a visual helps.</p>
+            </div>
+          )}
+        </aside>
+      </div>
     </main>
   );
 }

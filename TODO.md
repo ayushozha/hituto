@@ -103,6 +103,7 @@
 - [ ] Stream/prepare the first teaching beat earlier to reduce perceived latency.
 - [ ] Add selected-board-element follow-up questions.
 - [ ] Render tutor feedback onto the student's own whiteboard instead of a second board.
-- [ ] Lay the board and the conversation side by side; stacked, the thread is snug on short
-      screens even with the board collapsed.
+- [x] Lay the board and the conversation side by side. The board is a panel of its own
+      rather than a paragraph inside a chat bubble, and past explanations can be pinned
+      back into it.
 - [ ] Add lesson history and targeted practice only after core tutoring metrics are strong.

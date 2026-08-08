@@ -117,18 +117,135 @@ button { -webkit-tap-highlight-color: transparent; }
 .chat-app-shell {
   height: 100vh;
   overflow: hidden;
-  /* Keep a readable conversation no matter how tall the composer grows. */
-  grid-template-rows: 64px minmax(150px, 1fr) auto;
+  grid-template-rows: 64px minmax(0, 1fr);
   background:
     radial-gradient(circle at 50% -20%, rgba(255, 255, 255, 0.96), transparent 42%),
     #f3f5f4;
 }
 
-.chat-thread {
-  width: min(1040px, 100%);
+/* Conversation on the left, the board it produced on the right — the board
+   is a companion to the talk, not a paragraph inside it. */
+.workspace {
   min-height: 0;
+  width: min(1560px, 100%);
   margin: 0 auto;
-  padding: 28px 18px 54px;
+  display: grid;
+  grid-template-columns: minmax(380px, 1fr) minmax(520px, 1.25fr);
+  gap: 18px;
+}
+
+.workspace:not(:has(.board-panel .teaching-surface)) {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.workspace:not(:has(.board-panel .teaching-surface)) .board-panel { display: none; }
+
+.chat-column {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.board-panel {
+  min-height: 0;
+  min-width: 0;
+  margin-bottom: 18px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dce3e8;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 10px 34px rgba(31, 44, 54, 0.07);
+}
+
+.board-panel-header {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 8px 11px 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e8ecef;
+  color: #53616e;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.board-panel-header > span { display: inline-flex; align-items: center; gap: 8px; }
+.board-panel-header i { width: 7px; height: 7px; border-radius: 50%; background: #2aad73; box-shadow: 0 0 0 4px rgba(42, 173, 115, 0.1); }
+.board-panel-controls { display: flex; gap: 6px; }
+.board-panel-controls button {
+  border: 1px solid #dfe5e9;
+  border-radius: 9px;
+  padding: 7px 10px;
+  color: #4e5d69;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 720;
+  cursor: pointer;
+}
+.board-panel-controls button:hover:not(:disabled) { color: #1769e0; background: #f4f8ff; }
+.board-panel-controls button:disabled { opacity: 0.45; cursor: default; }
+
+/* The board fills its column instead of being squeezed into a bubble. */
+.board-panel .teaching-surface {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 12px;
+}
+.board-panel .teaching-canvas {
+  /* The panel crops the viewBox to the working area, so the canvas must clip:
+     `overflow: visible` above would let the uncropped board paint over the
+     question sitting above it. */
+  overflow: hidden;
+  flex: 0 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  max-height: 100%;
+  margin: auto 0;
+}
+.board-panel .live-caption {
+  position: static;
+  flex: 0 0 auto;
+  transform: none;
+  margin: 10px auto 2px;
+}
+
+.board-empty { flex: 1 1 auto; display: grid; place-content: center; gap: 14px; justify-items: center; color: #7b8791; }
+.board-empty p { margin: 0; font-size: 14px; }
+
+.activity-chip {
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border: 1px solid #dfe5e9;
+  border-radius: 999px;
+  background: #fff;
+  color: #4e5d69;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.activity-chip i { width: 7px; height: 7px; border-radius: 50%; background: #b7c2cc; }
+.activity-chip.is-active { border-color: #bcd6fb; color: #1769e0; background: #f4f8ff; }
+.activity-chip.is-active i { background: #2aad73; box-shadow: 0 0 0 4px rgba(42, 173, 115, 0.12); }
+.activity-chip:hover { border-color: #b9c6d2; }
+
+.chat-thread {
+  width: 100%;
+  min-height: 0;
+  padding: 24px 14px 30px;
   overflow-y: auto;
   scroll-behavior: smooth;
 }
@@ -210,11 +327,7 @@ button { -webkit-tap-highlight-color: transparent; }
   box-shadow: 0 8px 22px rgba(23, 105, 224, 0.18);
 }
 
-.chat-bubble.has-activity {
-  width: min(940px, calc(100vw - 100px));
-  max-width: calc(100% - 45px);
-  padding: 15px;
-}
+.chat-bubble.has-activity { max-width: calc(100% - 45px); }
 
 .chat-message-label {
   margin-bottom: 7px;
@@ -354,13 +467,15 @@ button { -webkit-tap-highlight-color: transparent; }
 }
 
 .question-paper {
+  flex: 0 0 auto;
   width: 100%;
-  height: 100%;
+  max-height: 38%;
   background: rgba(255, 255, 255, 0.96);
   border: 1px solid #e4e7e6;
   border-radius: 16px;
-  padding: 20px 24px;
-  overflow: hidden;
+  padding: 16px 20px;
+  /* A question with four choices must not be cut off mid-line. */
+  overflow-y: auto;
 }
 
 .question-kicker {
@@ -376,8 +491,8 @@ button { -webkit-tap-highlight-color: transparent; }
 .question-copy {
   white-space: pre-wrap;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 21px;
-  line-height: 1.42;
+  font-size: 17px;
+  line-height: 1.45;
   color: #1d2630;
 }
 
@@ -1373,4 +1488,10 @@ button { -webkit-tap-highlight-color: transparent; }
   padding: 8px 16px;
   border-radius: 10px;
   cursor: pointer;
+}
+
+/* One column when there is no room for two. */
+@media (max-width: 1100px) {
+  .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) auto; }
+  .board-panel { max-height: 46vh; }
 }

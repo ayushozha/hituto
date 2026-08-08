@@ -512,11 +512,27 @@ export function TeachingCanvas({
     rect,
   );
 
+  const typedQuestion = !sourceImageUrl && questionText.trim();
+  // With the question lifted out, the top of the board is empty paper; crop to
+  // the working area rather than render a blank band.
+  const viewBox = !camera && typedQuestion
+    ? `0 248 ${BOARD_WIDTH} 504`
+    : cameraViewBox(camera, rect);
+  const [, , viewBoxWidth, viewBoxHeight] = viewBox.split(" ").map(Number);
   return (
     <section className="teaching-surface" aria-label="Live teaching canvas">
+      {typedQuestion && (
+        <div className="question-paper">
+          <span className="question-kicker">SAT question</span>
+          <div className="question-copy">{questionText}</div>
+        </div>
+      )}
       <svg
         className="teaching-canvas"
-        viewBox={cameraViewBox(camera, rect)}
+        viewBox={viewBox}
+        // The element must carry the same shape as its viewBox, or the content
+        // scales past the element box and paints over whatever sits above it.
+        style={{ aspectRatio: `${viewBoxWidth} / ${viewBoxHeight}` }}
         role="img"
         aria-label="The SAT question and the tutor's live written explanation"
       >
@@ -561,13 +577,6 @@ export function TeachingCanvas({
               </text>
             )}
           </g>
-        ) : questionText.trim() ? (
-          <foreignObject x={rect.x} y={rect.y} width={rect.width} height={rect.height} className="source-question">
-            <div className="question-paper">
-              <span className="question-kicker">SAT question</span>
-              <div className="question-copy">{questionText}</div>
-            </div>
-          </foreignObject>
         ) : null}
 
         {!hasQuestion && (
