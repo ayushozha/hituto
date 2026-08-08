@@ -1,0 +1,85 @@
+{
+  "description": "Topic spread for the lesson pipeline: planner -> normalize -> reviewer -> correction -> re-review.",
+  "cases": [
+    {
+      "id": "algebra-linear",
+      "question": "If 3x + 7 = 22, what is the value of 5x - 4?  A) 11  B) 21  C) 25  D) 31",
+      "accept": ["21", "B"]
+    },
+    {
+      "id": "algebra-system",
+      "question": "If 2x + y = 11 and x - y = 1, what is the value of x?  A) 3  B) 4  C) 5  D) 6",
+      "accept": ["4", "B"]
+    },
+    {
+      "id": "algebra-quadratic",
+      "question": "The function f(x) = x^2 - 4x + 3 is graphed in the xy-plane. What is the vertex of the parabola?  A) (2, -1)  B) (-2, -1)  C) (2, 1)  D) (0, 3)",
+      "accept": ["(2,-1)", "2,-1"]
+    },
+    {
+      "id": "algebra-exponential",
+      "question": "A culture of 500 bacteria doubles every 3 hours. Which function gives the population after t hours?  A) 500(2)^(t/3)  B) 500(2)^(3t)  C) 500(3)^(t/2)  D) 500 + 2t",
+      "accept": ["500(2)^(t/3)", "500*2^(t/3)", "500·2^(t/3)"]
+    },
+    {
+      "id": "probability-expected-value",
+      "question": "A spinner lands on 0 with probability 0.2, on 1 with probability 0.5, and on 2 with probability 0.3. What is the expected value?  A) 1.0  B) 1.1  C) 1.2  D) 1.5",
+      "accept": ["1.1"]
+    },
+    {
+      "id": "probability-simple",
+      "question": "A bag holds 4 red marbles and 6 blue marbles. One marble is drawn at random. What is the probability it is red?  A) 2/5  B) 3/5  C) 2/3  D) 4/6",
+      "accept": ["2/5", "0.4"]
+    },
+    {
+      "id": "statistics-mean-median",
+      "question": "For the data set 4, 7, 9, 12, 18, what is the mean minus the median?  A) 0  B) 1  C) 2  D) 3",
+      "accept": ["1"]
+    },
+    {
+      "id": "sets-venn",
+      "question": "In a class of 100 students, 35 take only art, 25 take both art and music, and 20 take only music. How many students take at least one of the two?  A) 60  B) 75  C) 80  D) 95",
+      "accept": ["80"]
+    },
+    {
+      "id": "geometry-area",
+      "question": "Square ABCD has side length 6, with A at the top-left and the vertices labeled clockwise. Point E is the midpoint of side AB. What is the area of triangle ECD?  A) 12  B) 15  C) 18  D) 24",
+      "accept": ["18"]
+    },
+    {
+      "id": "geometry-circle",
+      "question": "A circle has circumference 12pi. What is its area?  A) 6pi  B) 12pi  C) 36pi  D) 144pi",
+      "accept": ["36pi", "36π"]
+    },
+    {
+      "id": "trigonometry",
+      "question": "In right triangle ABC the right angle is at B, AB = 3, and BC = 4. What is sin(A)?  A) 3/5  B) 4/5  C) 3/4  D) 5/4",
+      "accept": ["4/5", "0.8"]
+    },
+    {
+      "id": "ratio-percent",
+      "question": "After a 20% discount, a shirt costs $40. What was the original price?  A) $44  B) $48  C) $50  D) $52",
+      "accept": ["50"]
+    },
+    {
+      "id": "rw-subject-verb",
+      "question": "The Komodo dragon, the world's largest living lizard species, ______ its forked tongue to sample the air. Which choice conforms to Standard English?  A) have used  B) are using  C) uses  D) use",
+      "accept": ["uses"]
+    },
+    {
+      "id": "rw-transition",
+      "question": "Solar panels have become far cheaper to manufacture. ______, many utilities still rely on natural gas. Which choice best fits?  A) Therefore  B) Nevertheless  C) Likewise  D) For example",
+      "accept": ["nevertheless"]
+    },
+    {
+      "id": "rw-evidence",
+      "question": "A researcher claims urban gardens lower neighborhood temperatures. Which finding, if true, most directly supports the claim?  A) Urban gardens raise property values.  B) Blocks with gardens averaged 2 degrees cooler than blocks without.  C) Gardeners report higher life satisfaction.  D) Gardens require irrigation in summer.",
+      "accept": ["cooler"]
+    },
+    {
+      "id": "rw-word-choice",
+      "question": "The author's tone toward the proposal is best described as ______, since she praises its ambition while noting its cost.  A) dismissive  B) qualified  C) hostile  D) indifferent",
+      "accept": ["qualified"]
+    }
+  ]
+}

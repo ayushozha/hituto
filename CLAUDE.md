@@ -34,6 +34,15 @@ cd web && npm run build          # tsc -b && vite build — this is the TS typec
 
 All four are green. Note the README's mypy variant (`cd backend && MYPYPATH=... mypy src tests ../api`) does not pick up the root `.mypy.ini`, since mypy searches the cwd for config — prefer the `--config-file` form above.
 
+Quality regressions do **not** show up in pytest — a worse lesson is still valid data. Run the eval suites after any prompt, schema, or model change:
+
+```bash
+uv run python backend/eval/run_eval.py               # both suites, ~30 model calls, costs tokens
+uv run python backend/eval/run_eval.py --trials 3    # single runs are noisy; identical configs swing ±2
+```
+
+See `backend/eval/README.md`. It has caught every quality regression so far: reasoning effort, degenerate label segments, graph bounds, an over-strict prose validator, upside-down diagrams, and a too-short `answer_explanation`.
+
 Reboot lifecycle:
 
 ```bash

@@ -468,6 +468,16 @@ def _beat(
     )
 
 
+def _explanation(text: str, fallback: str) -> str:
+    """
+    `answer_explanation` needs 5 characters; `misconception` has no minimum.
+    A model answering "N/A" is truthy but too short, which failed validation
+    and lost the whole diagnosis after it had already been verified.
+    """
+    cleaned = text.strip()
+    return cleaned if len(cleaned) >= 5 else fallback
+
+
 def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> LessonPlan:
     """
     Turn a verified diagnosis into board work.
@@ -487,7 +497,9 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
             domain="math",
             question_summary=summary,
             final_answer=diagnosis.correct_answer,
-            answer_explanation=diagnosis.misconception or "Every step in the submitted work is correct.",
+            answer_explanation=_explanation(
+                diagnosis.misconception, "Every step in the submitted work is correct."
+            ),
             confidence=diagnosis.confidence,
             beats=[
                 _beat(
@@ -514,7 +526,9 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
             domain="math",
             question_summary=summary,
             final_answer="I need one more detail before I can check this.",
-            answer_explanation=diagnosis.misconception or "The submitted work could not be read confidently.",
+            answer_explanation=_explanation(
+                diagnosis.misconception, "The submitted work could not be read confidently."
+            ),
             confidence=diagnosis.confidence,
             beats=[
                 _beat(
@@ -568,7 +582,9 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
         domain="math",
         question_summary=summary,
         final_answer=diagnosis.correct_answer,
-        answer_explanation=diagnosis.misconception or "The submitted work goes wrong at the marked step.",
+        answer_explanation=_explanation(
+            diagnosis.misconception, "The submitted work goes wrong at the marked step."
+        ),
         confidence=diagnosis.confidence,
         beats=[
             _beat(

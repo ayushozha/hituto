@@ -433,6 +433,28 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
         )
         self.assertIn("checks out", lesson.beats[0].caption)
 
+    def test_a_terse_misconception_still_renders(self) -> None:
+        # "N/A" is truthy but shorter than answer_explanation's minimum, which
+        # threw away diagnoses that had already passed review.
+        for verdict, step in (("correct", 0), ("unclear", 0), ("incorrect", 1)):
+            with self.subTest(verdict=verdict):
+                lesson = _diagnosis_to_lesson(
+                    WorkDiagnosis.model_validate(
+                        {
+                            "verdict": verdict,
+                            "restated_steps": ["x = 5"],
+                            "first_error_step": step,
+                            "error_quote": "x = 5" if step else "",
+                            "misconception": "N/A",
+                            "next_hint": "Check the substitution.",
+                            "correct_answer": "21",
+                            "confidence": 0.8,
+                        }
+                    ),
+                    "question",
+                )
+                self.assertGreaterEqual(len(lesson.answer_explanation), 5)
+
     def test_unclear_work_asks_instead_of_accusing(self) -> None:
         lesson = _diagnosis_to_lesson(
             WorkDiagnosis.model_validate(

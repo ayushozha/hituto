@@ -1,0 +1,89 @@
+{
+  "description": "Student working with known outcomes. Half are correct submissions: a false accusation is the most damaging failure this feature can produce, so those carry the weight.",
+  "cases": [
+    {
+      "id": "linear-correct",
+      "question": "If 3x + 7 = 22, what is the value of 5x - 4?",
+      "work": "3x + 7 = 22\n3x = 15\nx = 5\n5(5) - 4 = 21",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "linear-sign-slip",
+      "question": "If 3x + 7 = 22, what is the value of 5x - 4?",
+      "work": "3x + 7 = 22\n3x = 29\nx = 9.67\n5(9.67) - 4 = 44.3",
+      "verdict": "incorrect",
+      "error_step": 2
+    },
+    {
+      "id": "linear-last-step-slip",
+      "question": "If 3x + 7 = 22, what is the value of 5x - 4?",
+      "work": "3x + 7 = 22\n3x = 15\nx = 5\n5(5) - 4 = 25",
+      "verdict": "incorrect",
+      "error_step": 4
+    },
+    {
+      "id": "quadratic-correct",
+      "question": "What is the vertex of f(x) = x^2 - 4x + 3?",
+      "work": "x = -b/2a = 4/2 = 2\nf(2) = 4 - 8 + 3 = -1\nvertex (2, -1)",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "quadratic-formula-slip",
+      "question": "What is the vertex of f(x) = x^2 - 4x + 3?",
+      "work": "x = b/2a = -4/2 = -2\nf(-2) = 4 + 8 + 3 = 15\nvertex (-2, 15)",
+      "verdict": "incorrect",
+      "error_step": 1
+    },
+    {
+      "id": "percent-inverse-error",
+      "question": "After a 20% discount a shirt costs $40. What was the original price?",
+      "work": "20% of 40 = 8\n40 + 8 = 48\noriginal price $48",
+      "verdict": "incorrect",
+      "error_step": 1
+    },
+    {
+      "id": "percent-correct",
+      "question": "After a 20% discount a shirt costs $40. What was the original price?",
+      "work": "40 = 0.8p\np = 40/0.8\np = 50",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "probability-correct-unusual-form",
+      "question": "A bag holds 4 red and 6 blue marbles. What is P(red)?",
+      "work": "total = 10\nP(red) = 4/10\n= 0.4",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "expected-value-correct",
+      "question": "Spinner: 0 with probability 0.2, 1 with probability 0.5, 2 with probability 0.3. Expected value?",
+      "work": "0(0.2) = 0\n1(0.5) = 0.5\n2(0.3) = 0.6\nsum = 1.1",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "expected-value-averaged",
+      "question": "Spinner: 0 with probability 0.2, 1 with probability 0.5, 2 with probability 0.3. Expected value?",
+      "work": "(0 + 1 + 2)/3 = 1\nexpected value = 1",
+      "verdict": "incorrect",
+      "error_step": 1
+    },
+    {
+      "id": "triangle-correct",
+      "question": "Right triangle ABC, right angle at B, AB=3, BC=4. Find sin(A).",
+      "work": "AC = sqrt(9+16) = 5\nsin A = opposite/hyp = BC/AC\nsin A = 4/5",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "triangle-wrong-ratio",
+      "question": "Right triangle ABC, right angle at B, AB=3, BC=4. Find sin(A).",
+      "work": "AC = 5\nsin A = adjacent/hyp = AB/AC\nsin A = 3/5",
+      "verdict": "incorrect",
+      "error_step": 2
+    }
+  ]
+}
