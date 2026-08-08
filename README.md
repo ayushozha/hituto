@@ -46,6 +46,12 @@ DEEPGRAM_TTS_MODEL=aura-2-thalia-en
 APP_ORIGIN=http://localhost:5173
 ```
 
+Sign-in stays on Reboot's development account picker until `OAUTH_PROVIDER` is set. To
+use a real provider, choose one of `google`, `github`, `auth0`, or `ory`, add its client ID
+and secret (plus `OAUTH_DOMAIN` for the tenant-hosted two), and register
+`<APP_ORIGIN>/__/oauth/callback` as the redirect URI with that provider. With it unset,
+`rbt serve` refuses to start rather than shipping the dev picker — that is intentional.
+
 The permanent LLM and Deepgram keys never enter the browser. The backend exchanges the Deepgram key for a short-lived token, encrypts it at rest with Reboot Ciphertext, and releases it once to the active browser session.
 
 ## Run locally

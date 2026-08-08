@@ -44,8 +44,11 @@
 
 ## Required before charging users
 
-- [ ] Choose and configure the production Reboot OAuth provider. `main.py` still passes
-      `prod=None`, so ownership is only enforced against the development provider.
+- [ ] Choose the production OAuth provider and supply its credentials. The wiring is done:
+      set `OAUTH_PROVIDER` to google, github, auth0, or ory with `OAUTH_CLIENT_ID` /
+      `OAUTH_CLIENT_SECRET` (and `OAUTH_DOMAIN` for auth0/ory), then register
+      `<APP_ORIGIN>/__/oauth/callback` with that provider. Until then sign-in stays on the
+      development account picker and ownership is only enforced there.
 - [x] Store the authenticated owner on every session and enforce ownership. Sessions created
       before this carry no owner and stay claimable — expunge dev state before relying on it.
 - [ ] Add account-level daily/monthly usage quotas.
