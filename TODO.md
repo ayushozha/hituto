@@ -59,14 +59,19 @@
 - [ ] Add billing, subscription status, and entitlement checks.
 - [ ] Replace private-beta pricing copy with validated plans only after product pricing is decided.
 - [ ] Add an operator view for usage, errors, model spend, and Deepgram spend.
-- [ ] Add structured logging, tracing, latency percentiles, and alerts.
+- [x] Add structured logging: one JSON event per line on `sat_tutor.events`, carrying
+      durations and outcomes with student content withheld.
+- [ ] Ship those events somewhere that computes percentiles and alerts. They are only
+      written to stdout today.
 - [ ] Add retry/circuit-breaker product behavior for provider outages.
 - [x] Create a representative SAT Math and Reading & Writing evaluation set.
 - [ ] Set and meet an accuracy threshold before marketing answer reliability. The gate exists
       (`run_eval.py --min-accuracy`); the number has not been chosen.
 - [ ] Extend the diagnosis suite beyond Math. All 12 cases are Math, and "step 2 is wrong"
       maps badly onto a Reading & Writing question.
-- [ ] Measure first-lesson, first-audio, and barge-in latency.
+- [ ] Measure first-audio and barge-in latency. Lesson preparation is now timed
+      server-side (`lesson.prepared`, `work.diagnosed`); both of the others are
+      client-side and still unmeasured.
 - [ ] Add privacy policy, terms, retention policy, and account deletion.
 - [ ] Deploy backend and frontend behind TLS; verify WSS and microphone permissions.
 - [ ] Configure secrets, environment separation, backup, and rollback.

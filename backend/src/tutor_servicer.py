@@ -6,6 +6,7 @@ import logging
 import os
 import re
 from datetime import timedelta
+import time
 from typing import Any, Sequence, Union
 
 import httpx
@@ -29,6 +30,7 @@ from reboot.std.collections.ordered_map.v1.ordered_map import OrderedMap
 from sat_tutor.v1.tutor import ChatMessage, TutorSessionState
 from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession, UsageLedger
 
+from observability import log_event, timed
 from lesson_models import (
     HighlightCommand,
     ImageQuestionAnalysis,
@@ -922,6 +924,8 @@ class TutorSessionServicer(TutorSession.Servicer):
         # session itself — an uncapped path is worse than a coarse one.
         account = self.state.owner_id or f"session:{self.ref().state_id}"
         allowance = await UsageLedger.ref(account).consume(context, kind=kind)
+        if not allowance.allowed:
+            log_event("usage.refused", session=self.ref().state_id, kind=kind)
         return "" if allowance.allowed else allowance.message
 
     async def _refuse(
@@ -1042,6 +1046,7 @@ class TutorSessionServicer(TutorSession.Servicer):
         context: WorkflowContext,
         request: TutorSession.ReviewWorkRequest,
     ) -> None:
+        started = time.monotonic()
         student_work = request.student_work.strip()
         if not student_work:
             await cls._store_lesson_error(
@@ -1125,6 +1130,12 @@ class TutorSessionServicer(TutorSession.Servicer):
                     )
                     # Never fall back to asserting an unverified verdict: a
                     # wrong "you made a mistake" costs more than no feedback.
+                    log_event(
+                        "work.withheld",
+                        session=context.state_id,
+                        generation=request.generation,
+                        reason="unverified-after-correction",
+                    )
                     await cls._store_lesson_error(
                         context,
                         request.generation,
@@ -1148,6 +1159,16 @@ class TutorSessionServicer(TutorSession.Servicer):
                 state.error_message = ""
                 state.revision += 1
 
+            log_event(
+                "work.diagnosed",
+                session=context.state_id,
+                generation=request.generation,
+                ms=round((time.monotonic() - started) * 1000),
+                verdict=diagnosis.verdict,
+                error_step=diagnosis.first_error_step,
+                confidence=round(diagnosis.confidence, 2),
+                steps=len(diagnosis.restated_steps),
+            )
             await TutorSession.ref().per_workflow("Store verified diagnosis").write(
                 context,
                 store_diagnosis,
@@ -1174,6 +1195,7 @@ class TutorSessionServicer(TutorSession.Servicer):
         context: WorkflowContext,
         request: TutorSession.PrepareLessonRequest,
     ) -> None:
+        started = time.monotonic()
         question_text = request.question_text.strip()
         if not question_text and not request.source_base64:
             await cls._store_lesson_error(
@@ -1259,9 +1281,16 @@ class TutorSessionServicer(TutorSession.Servicer):
             )
             reviewed = await lesson_reviewer.run(context, review_content)
             review = reviewed.output
+            corrected_once = not review.approved
             if not review.approved:
                 issue_text = "; ".join(review.issues[:3]) or "the solution could not be verified"
                 logger.warning("Initial SAT lesson was rejected: %s", issue_text)
+                log_event(
+                    "lesson.rejected",
+                    session=context.state_id,
+                    generation=request.generation,
+                    pass_number=1,
+                )
                 if has_image and diagram_analysis and diagram_analysis.should_reconstruct:
                     assert vision_diagram_agent is not None
                     diagram_correction_prompt = (
@@ -1354,6 +1383,16 @@ class TutorSessionServicer(TutorSession.Servicer):
                 state.revision += 1
                 return state.revision
 
+            log_event(
+                "lesson.prepared",
+                session=context.state_id,
+                generation=request.generation,
+                source=request.source_kind or "text",
+                ms=round((time.monotonic() - started) * 1000),
+                beats=len(lesson.beats),
+                commands=sum(len(beat.commands) for beat in lesson.beats),
+                corrected=corrected_once,
+            )
             await TutorSession.ref().per_workflow("Store verified lesson").write(
                 context,
                 store_lesson,
@@ -1650,6 +1689,12 @@ class TutorSessionServicer(TutorSession.Servicer):
             state.status = "error"
             state.error_message = message
 
+        log_event(
+            "student.error",
+            session=context.state_id,
+            generation=generation,
+            stage=alias,
+        )
         await TutorSession.ref().per_workflow(alias).write(context, store_error)
         await cls._append_assistant_message(
             context,
