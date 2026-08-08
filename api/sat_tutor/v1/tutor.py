@@ -195,6 +195,11 @@ UsageLedgerMethods = Methods(
 )
 
 
+class ForgetResponse(Model):
+    messages_erased: int = Field(tag=1, default=0)
+    more_remaining: bool = Field(tag=2, default=False)
+
+
 TutorSessionMethods = Methods(
     ensure=Writer(request=None, response=None, mcp=None),
     snapshot=Reader(request=None, response=SnapshotResponse, mcp=None),
@@ -249,6 +254,7 @@ TutorSessionMethods = Methods(
         mcp=None,
     ),
     reset=Writer(request=None, response=None, mcp=None),
+    forget=Transaction(request=None, response=ForgetResponse, mcp=None),
 )
 
 

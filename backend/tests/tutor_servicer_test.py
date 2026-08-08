@@ -5,8 +5,9 @@ from typing import Any
 from reboot.aio.applications import Application
 from reboot.aio.contexts import WorkflowContext
 from reboot.aio.tests import Reboot
+from reboot.std.ciphertext.v1.ciphertext import ciphertext_library
 from reboot.std.collections.ordered_map.v1.ordered_map import ordered_map_library
-from sat_tutor.v1.tutor_rbt import TutorSession, UsageLedger
+from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession, UsageLedger
 
 from lesson_models import (
     HighlightCommand,
@@ -137,7 +138,9 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
                     TutorMessageServicer,
                     UsageLedgerServicer,
                 ],
-                libraries=[ordered_map_library()],
+                # Same libraries main.py registers: `forget` crypto-shreds,
+                # which needs the KeyManager from the ciphertext library.
+                libraries=[ciphertext_library(), ordered_map_library()],
             )
         )
         self.context = await self.rbt.create_external_context_as(
@@ -194,6 +197,49 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(usage.checks_today, 3)
         self.assertEqual(usage.lessons_today, 0)
+
+    async def test_forget_erases_the_student_content(self) -> None:
+        started = await self.session.start_lesson(
+            self.context,
+            question_text="For y=x^2-4x+3, what is the vertex?",
+            source_kind="text",
+        )
+        await self._ready_snapshot(started.generation)
+        before = await self.session.messages(self.context, cursor="", limit=20)
+        self.assertTrue(any(message.text for message in before.messages))
+
+        erasure = await self.session.forget(self.context)
+        after = await self.session.snapshot(self.context)
+        remaining = await self.session.messages(self.context, cursor="", limit=20)
+
+        self.assertGreater(erasure.messages_erased, 0)
+        # Content is overwritten, not merely unlinked.
+        self.assertEqual(after.question_text, "")
+        self.assertEqual(after.lesson_json, "")
+        self.assertEqual(after.last_student_message, "")
+        self.assertEqual(remaining.messages, [])
+
+    async def test_forget_leaves_nothing_readable_behind(self) -> None:
+        started = await self.session.start_lesson(
+            self.context,
+            question_text="A private question about my own weak spots",
+            source_kind="text",
+        )
+        await self._ready_snapshot(started.generation)
+        before = await self.session.messages(self.context, cursor="", limit=20)
+        message_ids = [message.id for message in before.messages]
+
+        await self.session.forget(self.context)
+
+        # Addressing an erased message directly must not resurrect its text.
+        internal = self.rbt.create_external_context(
+            name=f"internal-{self.id()}", app_internal=True
+        )
+        for message_id in message_ids:
+            snapshot = await TutorMessage.ref(message_id).snapshot(internal)
+            self.assertEqual(snapshot.text, "")
+            self.assertEqual(snapshot.lesson_json, "")
+            self.assertEqual(snapshot.status, "erased")
 
     async def test_another_account_cannot_read_or_write_this_session(self) -> None:
         await self.session.start_lesson(

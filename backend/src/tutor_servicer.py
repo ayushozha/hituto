@@ -25,6 +25,7 @@ from reboot.aio.contexts import ReaderContext, TransactionContext, WorkflowConte
 from reboot.aio.workflows import at_least_once
 from reboot.std.ciphertext.v1.ciphertext import (
     APP_SHARED_KEY_MANAGER_ID,
+    KeyManager,
     make_associated_data,
 )
 from reboot.std.collections.ordered_map.v1.ordered_map import OrderedMap
@@ -65,6 +66,8 @@ MAX_DIAGRAM_GEOMETRY = 9
 # same vertex. Roughly 1% of the panel: tight enough not to merge distinct
 # features, loose enough to close a hand-estimated corner.
 VERTEX_SNAP_TOLERANCE = 0.012
+# Erasure runs in one transaction, so it works in pages.
+FORGET_PAGE = 100
 # A lesson costs four to six provider calls, so an uncapped account is an
 # uncapped bill. Deliberately generous: a real student doing a full practice
 # set stays well under, and only a runaway loop notices.
@@ -654,6 +657,11 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
     )
 
 
+def _voice_scope(session_id: str) -> str:
+    """Crypto-shredding is per scope, so keep it per session, not per token."""
+    return f"voice-token:{session_id}"
+
+
 def _voice_associated_data(session_id: str, generation: int) -> bytes:
     return make_associated_data(
         session_id=session_id,
@@ -901,6 +909,74 @@ class TutorSessionServicer(TutorSession.Servicer):
             self.ref().state_id,
             self.state.chat_revision,
         )
+
+    async def forget(
+        self,
+        context: TransactionContext,
+    ) -> TutorSession.ForgetResponse:
+        """
+        Erase everything this session holds about the student.
+
+        Blanking is the honest part: questions, working, and lessons live in
+        plain actor state, so they have to be overwritten rather than merely
+        unlinked. The crypto-shred then makes any encrypted remnant — voice
+        tokens sealed under this session's scope — permanently undecryptable,
+        even with database and root-key access.
+        """
+        erased = 0
+        more = False
+        if self.state.message_index_id and self.state.message_count:
+            page = await OrderedMap.ref(self.state.message_index_id).range(
+                context,
+                start_key="",
+                limit=FORGET_PAGE,
+            )
+            for entry in page.entries:
+                await TutorMessage.ref(entry.bytes.decode("utf-8")).set(
+                    context,
+                    role="",
+                    text="",
+                    lesson_json="",
+                    source_kind="",
+                    generation=0,
+                    status="erased",
+                )
+                erased += 1
+            more = len(page.entries) == FORGET_PAGE
+
+        await KeyManager.ref(APP_SHARED_KEY_MANAGER_ID).shred(
+            context,
+            scope=_voice_scope(self.ref().state_id),
+        )
+
+        self.state.question_text = ""
+        self.state.source_kind = ""
+        self.state.lesson_json = ""
+        self.state.status = ""
+        self.state.error_message = ""
+        self.state.last_student_message = ""
+        self.state.voice_token_ciphertext_id = ""
+        self.state.voice_status = ""
+        self.state.voice_error = ""
+        self.state.tts_model = ""
+        self.state.generation += 1
+        self.state.voice_generation += 1
+        if not more:
+            # A fresh index; the blanked messages are no longer reachable.
+            self.state.chat_revision += 1
+            self.state.message_count = 0
+            self.state.message_index_id = _message_index_id(
+                self.ref().state_id,
+                self.state.chat_revision,
+            )
+
+        log_event(
+            "account.forgotten",
+            session=self.ref().state_id,
+            messages_erased=erased,
+            more_remaining=more,
+        )
+        return TutorSession.ForgetResponse(messages_erased=erased, more_remaining=more)
 
     async def _append_user_message(
         self,
@@ -1629,7 +1705,7 @@ class TutorSessionServicer(TutorSession.Servicer):
                 context,
                 plaintext=access_token.encode("utf-8"),
                 associated_data=_voice_associated_data(context.state_id, request.generation),
-                scope=f"voice-token:{context.state_id}:{request.generation}",
+                scope=_voice_scope(context.state_id),
                 key_manager_id=APP_SHARED_KEY_MANAGER_ID,
             )
         except Exception as error:

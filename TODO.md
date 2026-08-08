@@ -76,7 +76,14 @@
 - [ ] Measure first-audio and barge-in latency. Lesson preparation is now timed
       server-side (`lesson.prepared`, `work.diagnosed`); both of the others are
       client-side and still unmeasured.
-- [ ] Add privacy policy, terms, retention policy, and account deletion.
+- [x] Account deletion: `TutorSession.forget` overwrites the question, working, lessons,
+      and every chat message, then crypto-shreds the session's ciphertext scope so any
+      encrypted remnant is permanently undecryptable. Erases in pages of 100; the
+      response reports whether more remain.
+- [ ] Expose deletion in the product. `forget` exists but nothing in the UI calls it,
+      and there is no confirmation flow.
+- [ ] Add a privacy policy, terms, and a stated retention period. These are legal
+      documents and need review, not just drafting.
 - [ ] Deploy backend and frontend behind TLS; verify WSS and microphone permissions.
 - [ ] Configure secrets, environment separation, backup, and rollback.
 - [ ] Review the transitive moderate `@hono/node-server` Windows advisory; do not use the incompatible npm downgrade suggested by `npm audit`.
