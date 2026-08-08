@@ -1343,3 +1343,34 @@ button { -webkit-tap-highlight-color: transparent; }
   .getting-started ol { grid-template-columns: 1fr; }
   .classroom-header-actions > button { display: none; }
 }
+
+.data-panel { border: 1px solid #f0d8d8; }
+.data-panel p { max-width: 62ch; }
+
+.danger-action {
+  border: 1px solid #d93025;
+  background: #fff;
+  color: #d93025;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.danger-action:hover:not(:disabled) { background: #d93025; color: #fff; }
+.danger-action:disabled { opacity: 0.55; cursor: default; }
+
+.danger-confirm { display: grid; gap: 10px; }
+.danger-confirm strong { color: #a52218; font-size: 0.92rem; }
+.danger-confirm div { display: flex; gap: 9px; flex-wrap: wrap; }
+
+.danger-confirm button:not(.danger-action) {
+  border: 1px solid #dfe5ea;
+  background: #fff;
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}

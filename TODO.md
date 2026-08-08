@@ -80,8 +80,8 @@
       and every chat message, then crypto-shreds the session's ciphertext scope so any
       encrypted remnant is permanently undecryptable. Erases in pages of 100; the
       response reports whether more remain.
-- [ ] Expose deletion in the product. `forget` exists but nothing in the UI calls it,
-      and there is no confirmation flow.
+- [x] Expose deletion in the product: a "Your data" panel on the dashboard with a
+      two-step confirmation, reporting how much was erased.
 - [ ] Add a privacy policy, terms, and a stated retention period. These are legal
       documents and need review, not just drafting.
 - [ ] Deploy backend and frontend behind TLS; verify WSS and microphone permissions.

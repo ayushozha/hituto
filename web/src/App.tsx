@@ -199,11 +199,21 @@ function AuthenticatedProduct({ pathname }: { pathname: "/app" | "/dashboard" })
 function DashboardExperience({ sessionId }: { sessionId: string }) {
   const session = useTutorSession({ id: sessionId });
   const { response: snapshot } = session.useSnapshot();
+
+  async function forget(): Promise<number> {
+    const { response, aborted } = await session.mutators.forget(undefined, {
+      idempotencyKey: crypto.randomUUID(),
+    });
+    if (aborted || !response) throw new Error(abortedMessage(aborted));
+    return response.messagesErased;
+  }
+
   return (
     <DashboardPage
       questionText={snapshot?.questionText || ""}
       status={snapshot?.status || ""}
       lesson={snapshot?.lessonJson ? parseLesson(snapshot.lessonJson) : undefined}
+      onForget={forget}
     />
   );
 }

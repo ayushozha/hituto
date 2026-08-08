@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
 import { useSignOut } from "@reboot-dev/reboot-react";
 import type { LessonPlan } from "../types/lesson";
@@ -241,7 +242,67 @@ function lessonStatus(status: string): string {
   return "Saved on this device";
 }
 
-export function DashboardPage({ questionText, status, lesson }: { questionText: string; status: string; lesson?: LessonPlan }) {
+function DeleteMyData({ onForget }: { onForget: () => Promise<number> }) {
+  const [stage, setStage] = useState<"idle" | "confirming" | "working" | "done">("idle");
+  const [erased, setErased] = useState(0);
+
+  if (stage === "done") {
+    return (
+      <section className="dashboard-panel data-panel">
+        <span className="panel-kicker">Your data</span>
+        <h2>Erased.</h2>
+        <p>
+          Your questions, working, and {erased} message{erased === 1 ? "" : "s"} were
+          overwritten, and the keys protecting anything encrypted were destroyed. None of it
+          can be recovered.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="dashboard-panel data-panel">
+      <span className="panel-kicker">Your data</span>
+      <h2>Delete everything you have asked me</h2>
+      <p>
+        Your questions, your working, and every lesson are overwritten rather than hidden,
+        and the keys protecting anything encrypted are destroyed. This cannot be undone.
+      </p>
+      {stage === "idle" ? (
+        <button type="button" className="danger-action" onClick={() => setStage("confirming")}>
+          Delete my data
+        </button>
+      ) : (
+        <div className="danger-confirm">
+          <strong>Permanently erase everything? This cannot be undone.</strong>
+          <div>
+            <button
+              type="button"
+              className="danger-action"
+              disabled={stage === "working"}
+              onClick={() => {
+                setStage("working");
+                void onForget()
+                  .then((count) => {
+                    setErased(count);
+                    setStage("done");
+                  })
+                  .catch(() => setStage("idle"));
+              }}
+            >
+              {stage === "working" ? "Erasing…" : "Yes, erase it"}
+            </button>
+            <button type="button" onClick={() => setStage("idle")} disabled={stage === "working"}>
+              Keep my data
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function DashboardPage({ questionText, status, lesson, onForget }: { questionText: string; status: string; lesson?: LessonPlan; onForget: () => Promise<number> }) {
   const hasLesson = Boolean(questionText || lesson);
   return (
     <div className="dashboard-page">
@@ -299,6 +360,8 @@ export function DashboardPage({ questionText, status, lesson }: { questionText: 
             <li><span>3</span><p><strong>Interrupt immediately</strong>Say “show me another way” the moment something stops making sense.</p></li>
           </ol>
         </section>
+
+        <DeleteMyData onForget={onForget} />
       </main>
     </div>
   );
