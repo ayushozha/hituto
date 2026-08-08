@@ -26,6 +26,8 @@ interface Rect {
 
 interface TeachingCanvasProps {
   questionText: string;
+  /** What the question is to this activity: taught, or checked against. */
+  questionLabel?: string;
   sourceImageUrl?: string;
   sourceImageSize?: { width: number; height: number };
   commands: SceneCommand[];
@@ -467,6 +469,7 @@ function cameraViewBox(camera: CameraCommand | undefined, rect: Rect): string {
 
 export function TeachingCanvas({
   questionText,
+  questionLabel = "SAT question",
   sourceImageUrl,
   sourceImageSize,
   commands,
@@ -523,7 +526,7 @@ export function TeachingCanvas({
     <section className="teaching-surface" aria-label="Live teaching canvas">
       {typedQuestion && (
         <div className="question-paper">
-          <span className="question-kicker">SAT question</span>
+          <span className="question-kicker">{questionLabel}</span>
           <div className="question-copy">{questionText}</div>
         </div>
       )}

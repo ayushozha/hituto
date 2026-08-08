@@ -68,6 +68,15 @@ function completedScene(lesson: LessonPlan): SceneState {
   );
 }
 
+/**
+ * Diagnoses are built by `_diagnosis_to_lesson`, which names every beat
+ * `work:*`. The board is captioned differently for them: the question shown
+ * is what the working was checked against, not what is being taught.
+ */
+function isWorkCheck(lesson: LessonPlan): boolean {
+  return lesson.beats.some((beat) => beat.id.startsWith("work:"));
+}
+
 function hasTeachingActivity(lesson: LessonPlan): boolean {
   return lesson.beats.some((beat) => beat.commands.length > 0);
 }
@@ -873,7 +882,12 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
           {panelLesson ? (
             <>
               <div className="board-panel-header">
-                <span><i /> {panelIsLive ? "Live visual explanation" : "Earlier explanation"}</span>
+                <span>
+                  <i />
+                  {isWorkCheck(panelLesson)
+                    ? "Your working, checked"
+                    : panelIsLive ? "Live visual explanation" : "Earlier explanation"}
+                </span>
                 <div className="board-panel-controls">
                   {panelIsLive ? (
                     <>
@@ -888,6 +902,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
                 </div>
               </div>
               <TeachingCanvas
+                questionLabel={isWorkCheck(panelLesson) ? "Checked against" : "SAT question"}
                 questionText={panelIsLive ? (questionText || snapshot?.questionText || panelLesson.question_summary) : panelLesson.question_summary}
                 sourceImageUrl={panelIsLive ? selectedImage?.dataUrl : undefined}
                 sourceImageSize={panelIsLive && selectedImage ? { width: selectedImage.width, height: selectedImage.height } : undefined}

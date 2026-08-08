@@ -1292,14 +1292,19 @@ class TutorSessionServicer(TutorSession.Servicer):
                     return
 
             lesson = _normalize_lesson(
-                _diagnosis_to_lesson(diagnosis, current.question_text),
-                question_text=current.question_text,
+                _diagnosis_to_lesson(diagnosis, question_text),
+                question_text=question_text,
             )
             lesson_json = lesson.model_dump_json()
 
             async def store_diagnosis(state: Any) -> None:
                 if state.generation != request.generation:
                     return
+                # Work submitted with its own question moves the session onto
+                # it; otherwise the board would caption the diagnosis with a
+                # question the tutor never looked at.
+                if request.question_text.strip():
+                    state.question_text = request.question_text.strip()
                 state.lesson_json = lesson_json
                 state.status = "ready"
                 state.error_message = ""
