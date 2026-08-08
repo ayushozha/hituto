@@ -6,7 +6,13 @@ from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
 from reboot.agents.pydantic_ai import Agent
 
-from lesson_models import ImageQuestionAnalysis, LessonDraft, LessonReview, WorkDiagnosis
+from lesson_models import (
+    ImageQuestionAnalysis,
+    LessonDraft,
+    LessonReview,
+    QuestionFromTopic,
+    WorkDiagnosis,
+)
 
 
 PLANNER_PROMPT = """
@@ -225,6 +231,27 @@ Return a short list of concrete issues. Do not rewrite the diagnosis.
 """
 
 
+TOPIC_PROMPT = """
+A student has typed something into an SAT tutor. Decide what it is.
+
+If it is already a complete, answerable SAT question — even without answer choices — set
+is_complete_question=true and return it unchanged in sat_question.
+
+If it is a topic, a skill, or a request to be taught something ("teach me probability",
+"help with systems of equations", "I keep messing up percentages"), set
+is_complete_question=false, name the topic, and write ONE representative SAT question on it
+in sat_question.
+
+The question you write must:
+- be answerable with a single correct answer, and typical of the real SAT in difficulty;
+- include four labelled choices A) through D) with exactly one correct;
+- use the plainest case of the topic, since this is the student's first exposure to it;
+- avoid needing a diagram the student cannot see.
+
+Write the question only. Do not solve it, and do not explain anything.
+"""
+
+
 def _build_model(model_environment_name: str, default_model: str) -> Optional[Model]:
     api_key = os.environ.get("LLM_API_KEY", "").strip()
     model_name = os.environ.get(model_environment_name, default_model).strip()
@@ -273,6 +300,7 @@ planner_agent: Optional[Agent[None, LessonDraft]] = None
 reviewer_agent: Optional[Agent[None, LessonReview]] = None
 replanner_agent: Optional[Agent[None, LessonDraft]] = None
 diagnostician_agent: Optional[Agent[None, WorkDiagnosis]] = None
+topic_agent: Optional[Agent[None, QuestionFromTopic]] = None
 diagnosis_reviewer_agent: Optional[Agent[None, LessonReview]] = None
 vision_planner_agent: Optional[Agent[None, LessonDraft]] = None
 vision_reviewer_agent: Optional[Agent[None, LessonReview]] = None
@@ -299,6 +327,13 @@ if MODEL is not None:
         name="sat-lesson-replanner-v3",
         output_type=LessonDraft,
         system_prompt=REPLANNER_PROMPT,
+        output_retries=3,
+    )
+    topic_agent = Agent(
+        MODEL,
+        name="sat-topic-to-question-v1",
+        output_type=QuestionFromTopic,
+        system_prompt=TOPIC_PROMPT,
         output_retries=3,
     )
     diagnostician_agent = Agent(

@@ -28,6 +28,11 @@
 
 ## Since the MVP — complete
 
+- [x] Accept a topic, not just a question. "Teach me probability" had no verifiable
+      answer, so the planner overflowed `final_answer` or wrote prose that any follow-up
+      then contradicted — which is what surfaced as "the follow-up changed the verified
+      answer". A topic now becomes one representative SAT question first.
+
 - [x] Split the planner's command union into `write` and `draw`; beats with nothing written
       on the board went from 8/16 to 0/16 of the evaluation set.
 - [x] Centre absolute labels on the point they name, measure them from the real text, and

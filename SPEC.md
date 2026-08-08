@@ -30,6 +30,8 @@ The classroom is a chat thread with two named modes and no course navigation or 
 5. A correction and re-review when the first lesson is rejected.
 5a. Diagnosis of the student's own written working, behind the same review gate.
 5b. A student-writable Excalidraw whiteboard whose text elements become that working.
+5c. Topic requests resolved into one representative question before planning, because
+    every downstream contract assumes a specific question with a verifiable answer.
 6. Short spoken teaching beats with matching captions.
 7. Deepgram streaming TTS and conversational STT.
 8. Pause, replay, new question, typed interruption, and voice interruption.

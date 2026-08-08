@@ -404,6 +404,21 @@ class LessonDraft(BaseModel):
         )
 
 
+class QuestionFromTopic(BaseModel):
+    """
+    Resolves "teach me probability" into something teachable.
+
+    Every downstream contract assumes a specific question with a verifiable
+    answer, so a topic has to become one before the planner sees it.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    is_complete_question: bool
+    topic: str = Field(default="", max_length=120)
+    sat_question: str = Field(min_length=10, max_length=900)
+
+
 class LessonReview(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

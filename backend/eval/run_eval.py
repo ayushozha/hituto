@@ -41,10 +41,15 @@ from lesson_models import (  # noqa: E402
     LessonDraft,
     LessonPlan,
     LessonReview,
+    QuestionFromTopic,
     WorkDiagnosis,
 )
 import tutor_agents  # noqa: E402
-from tutor_servicer import _diagnosis_to_lesson, _normalize_lesson  # noqa: E402
+from tutor_servicer import (  # noqa: E402
+    _diagnosis_to_lesson,
+    _might_be_a_topic,
+    _normalize_lesson,
+)
 
 CASES = pathlib.Path(__file__).resolve().parent / "cases"
 
@@ -142,6 +147,18 @@ def run_lesson_case(provider: Provider, case: dict[str, Any]) -> dict[str, Any]:
     started = time.monotonic()
     out: dict[str, Any] = {"id": case["id"]}
     question = case["question"]
+
+    # Mirror prepare_lesson: a topic becomes a question before planning.
+    if _might_be_a_topic(question):
+        resolved = retrying(lambda: QuestionFromTopic.model_validate(provider.structured(
+            tutor_agents.TOPIC_PROMPT,
+            "Decide what the student typed and, if it is a topic, write one representative "
+            f"SAT question on it.\n\nStudent typed:\n{question}",
+            QuestionFromTopic.model_json_schema(),
+        )))
+        if not resolved.is_complete_question:
+            out["topic"] = resolved.topic
+            question = resolved.sat_question
 
     def plan(user: str) -> LessonPlan:
         return retrying(lambda: LessonDraft.model_validate(

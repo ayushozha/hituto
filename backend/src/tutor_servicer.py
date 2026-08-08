@@ -51,6 +51,7 @@ from tutor_agents import (
     reviewer_agent,
     vision_configuration_message,
     vision_diagram_agent,
+    topic_agent,
     vision_reviewer_agent,
 )
 
@@ -124,6 +125,26 @@ def _is_transient(error: Exception) -> bool:
         return True
     # ModelAPIError that is not an HTTP error means the request never landed.
     return isinstance(error, ModelAPIError)
+
+
+def _might_be_a_topic(text: str) -> bool:
+    """
+    Cheap gate before spending a call on the topic agent.
+
+    Deliberately loose: the agent makes the real decision, so a false positive
+    here costs one call and a false negative costs the student a lesson.
+    """
+    stripped = text.strip()
+    if not stripped or len(stripped) > 160:
+        return False
+    if re.search(r"\b[A-D]\)", stripped):
+        return False
+    asks_to_be_taught = re.search(
+        r"\b(teach|explain|learn|help me with|how do i|struggle|bad at|revise|practice)\b",
+        stripped,
+        re.IGNORECASE,
+    )
+    return bool(asks_to_be_taught) or "?" not in stripped
 
 
 def _same_answer(left: str, right: str) -> bool:
@@ -1353,6 +1374,33 @@ class TutorSessionServicer(TutorSession.Servicer):
         try:
             diagram_analysis: ImageQuestionAnalysis | None = None
             diagram_commands: list[dict[str, Any]] = []
+            taught_topic = ""
+            if not has_image and topic_agent is not None and _might_be_a_topic(question_text):
+                resolved = await topic_agent.run(
+                    context,
+                    "Decide what the student typed and, if it is a topic, write one "
+                    f"representative SAT question on it.\n\nStudent typed:\n{question_text}",
+                )
+                if not resolved.output.is_complete_question:
+                    taught_topic = resolved.output.topic
+                    question_text = resolved.output.sat_question
+                    log_event(
+                        "topic.resolved",
+                        session=context.state_id,
+                        generation=request.generation,
+                        topic=taught_topic,
+                    )
+
+                    async def store_topic_question(state: Any) -> None:
+                        if state.generation != request.generation:
+                            return
+                        # Show the question being taught, not the request.
+                        state.question_text = question_text
+
+                    await TutorSession.ref().per_workflow("Store topic question").write(
+                        context,
+                        store_topic_question,
+                    )
             student_material = question_text
             if has_image:
                 assert vision_diagram_agent is not None

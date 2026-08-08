@@ -7,6 +7,8 @@ A standalone SAT tutor that solves a pasted or uploaded SAT question, verifies t
 - Public landing page with a real product demonstration and clear beta positioning
 - Authenticated student dashboard with the real current lesson or an honest empty state
 - Chat classroom with two named modes: ask a question, or check your own working
+- Topic requests ("teach me probability") become a representative SAT question and are
+  taught through the same verified pipeline
 - "Check my work": the student writes their steps and the tutor marks the first one that
   breaks, hands back a hint rather than the answer, and says so honestly when it cannot judge
 - An Excalidraw whiteboard to write those steps on, or the text box if you prefer
