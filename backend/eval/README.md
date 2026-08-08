@@ -35,8 +35,14 @@ reviewer → correction → re-review, exactly as `prepare_lesson` does.
 Watch `first pass wrote nothing`: it counts lessons whose opening pass produced
 beats with no writing at all. It was 8/16 before the write/draw split.
 
-**`cases/diagnoses.json`** — 12 pieces of student working, half correct and half
-with a planted error at a known step. Runs diagnostician → verifier → correction.
+**`cases/diagnoses.json`** — 18 pieces of student working, half correct and half with a
+planted error at a known step. Twelve Math, six Reading & Writing (subject
+identification, transition logic, evidence selection, tone). Runs diagnostician →
+verifier → correction.
+
+The Reading & Writing cases exist because a step-located verdict looked like a poor fit
+for verbal reasoning. Measurement disagreed — they score the same as the Math ones — so
+keep them: the assumption was wrong once and could be wrong again after a prompt change.
 
 The number that matters is `FALSE ACCUSATIONS` — telling a student their correct
 work is wrong. Half the cases are correct submissions specifically so this is

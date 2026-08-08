@@ -1,5 +1,5 @@
 {
-  "description": "Student working with known outcomes. Half are correct submissions: a false accusation is the most damaging failure this feature can produce, so those carry the weight.",
+  "description": "Student working with known outcomes. Half are correct submissions: a false accusation is the most damaging failure this feature can produce, so those carry the weight. Reading & Writing cases are included because 'step 2 is wrong' fits verbal reasoning less naturally than arithmetic, and that is worth measuring rather than assuming.",
   "cases": [
     {
       "id": "linear-correct",
@@ -82,6 +82,48 @@
       "id": "triangle-wrong-ratio",
       "question": "Right triangle ABC, right angle at B, AB=3, BC=4. Find sin(A).",
       "work": "AC = 5\nsin A = adjacent/hyp = AB/AC\nsin A = 3/5",
+      "verdict": "incorrect",
+      "error_step": 2
+    },
+    {
+      "id": "rw-subject-verb-correct",
+      "question": "The Komodo dragon, the world's largest living lizard species, ______ its forked tongue to sample the air.  A) have used  B) are using  C) uses  D) use",
+      "work": "The subject is 'The Komodo dragon'\nThe phrase between the commas is not the subject\nA singular subject takes 'uses'\nAnswer C",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "rw-subject-verb-wrong-subject",
+      "question": "The Komodo dragon, the world's largest living lizard species, ______ its forked tongue to sample the air.  A) have used  B) are using  C) uses  D) use",
+      "work": "The subject is 'species'\n'species' is plural here\nA plural subject takes 'use'\nAnswer D",
+      "verdict": "incorrect",
+      "error_step": 1
+    },
+    {
+      "id": "rw-transition-correct",
+      "question": "Solar panels have become far cheaper to manufacture. ______, many utilities still rely on natural gas.  A) Therefore  B) Nevertheless  C) Likewise  D) For example",
+      "work": "First sentence: panels got cheaper\nSecond sentence: utilities still burn gas\nThose two ideas contrast\n'Nevertheless' signals a contrast\nAnswer B",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "rw-transition-wrong-relation",
+      "question": "Solar panels have become far cheaper to manufacture. ______, many utilities still rely on natural gas.  A) Therefore  B) Nevertheless  C) Likewise  D) For example",
+      "work": "First sentence: panels got cheaper\nSecond sentence: utilities still burn gas\nThe second is a result of the first\n'Therefore' signals a result\nAnswer A",
+      "verdict": "incorrect",
+      "error_step": 3
+    },
+    {
+      "id": "rw-evidence-correct",
+      "question": "A researcher claims urban gardens lower neighborhood temperatures. Which finding, if true, most directly supports the claim?  A) Urban gardens raise property values.  B) Blocks with gardens averaged 2 degrees cooler than blocks without.  C) Gardeners report higher life satisfaction.  D) Gardens require irrigation in summer.",
+      "work": "The claim is about temperature\nOnly one choice measures temperature\nB says garden blocks were 2 degrees cooler\nAnswer B",
+      "verdict": "correct",
+      "error_step": 0
+    },
+    {
+      "id": "rw-tone-ignores-praise",
+      "question": "The author's tone toward the proposal is best described as ______, since she praises its ambition while noting its cost.  A) dismissive  B) qualified  C) hostile  D) indifferent",
+      "work": "She criticises the cost\nA critical tone is dismissive\nAnswer A",
       "verdict": "incorrect",
       "error_step": 2
     }

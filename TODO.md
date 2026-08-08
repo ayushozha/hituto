@@ -71,8 +71,10 @@
 - [x] Create a representative SAT Math and Reading & Writing evaluation set.
 - [ ] Set and meet an accuracy threshold before marketing answer reliability. The gate exists
       (`run_eval.py --min-accuracy`); the number has not been chosen.
-- [ ] Extend the diagnosis suite beyond Math. All 12 cases are Math, and "step 2 is wrong"
-      maps badly onto a Reading & Writing question.
+- [x] Extend the diagnosis suite beyond Math. Six Reading & Writing cases added (subject
+      identification, transition logic, evidence selection, tone). The worry that
+      "step 2 is wrong" would not fit verbal reasoning did not survive measurement:
+      18/18 verdicts across three runs, exact step in 17-18 of 18.
 - [ ] Measure first-audio and barge-in latency. Lesson preparation is now timed
       server-side (`lesson.prepared`, `work.diagnosed`); both of the others are
       client-side and still unmeasured.
