@@ -1,14 +1,16 @@
 # SAT Live Tutor — MVP Product and Architecture Specification
 
 **Status:** Implemented commercial beta MVP  
-**Version:** 0.4  
+**Version:** 0.5  
 **Date:** August 7, 2026
 
 ## Product promise
 
 The lesson is the interface. A student pastes a complete SAT question or uploads a clear question image. The tutor solves and verifies the question, speaks like a patient teacher, and writes only the useful reasoning on a live board. The student can interrupt and ask why, request a visual explanation, or ask for a different method.
 
-The classroom remains deliberately focused: one composer and no course navigation or teaching-tool picker. A separate commercial shell now gives the product a public landing page, private-beta pricing, and an authenticated student dashboard without cluttering the live lesson.
+The tutor also reads work the student has done themselves. In "check my work" the student writes their own steps — on a whiteboard or in the text box — and the tutor finds the first one that breaks, explains the idea behind the slip, and hands back a hint rather than the answer.
+
+The classroom is a chat thread with two named modes and no course navigation or teaching-tool picker. A separate commercial shell gives the product a public landing page, private-beta pricing, and an authenticated student dashboard without cluttering the live lesson.
 
 ## Route surface
 
@@ -26,6 +28,8 @@ The classroom remains deliberately focused: one composer and no course navigatio
 3. One PNG or JPEG question image up to 4 MB, with optional typed context.
 4. A planner pass followed by an independent reviewer pass.
 5. A correction and re-review when the first lesson is rejected.
+5a. Diagnosis of the student's own written working, behind the same review gate.
+5b. A student-writable Excalidraw whiteboard whose text elements become that working.
 6. Short spoken teaching beats with matching captions.
 7. Deepgram streaming TTS and conversational STT.
 8. Pause, replay, new question, typed interruption, and voice interruption.
@@ -47,6 +51,8 @@ The classroom remains deliberately focused: one composer and no course navigatio
 - Student drawing and selecting board objects.
 - Cross-device lesson history, calculated progress analytics, practice generation, and mastery tracking. The current dashboard intentionally shows only the durable lesson available in the current browser session.
 - Payments, subscriptions, school administration, and native mobile apps.
+- Handwriting. Whiteboard working is typed, so nothing is recognised or transcribed.
+- Tutor feedback drawn onto the student's own canvas; the verified board remains separate.
 
 ## Primary user flow
 
@@ -97,6 +103,15 @@ The language model supplies semantic data. The renderer owns geometry, typograph
 - The model supplies two set labels and the left-only, overlap, right-only, and optional outside region text.
 - The renderer owns the overlapping-circle geometry.
 
+### Beat composition
+
+- A beat carries two separate lists: `write` for text and math, `draw` for everything else.
+  The planner reached for a geometry primitive when it meant to write, encoding labels as
+  zero-length lines; splitting the choice removed that failure. Every beat must write at
+  least one note, and `erase`/`clear`/`camera` are not part of the vocabulary.
+- Writing is flattened ahead of drawing, so a highlight always resolves a target written
+  earlier in the same beat.
+
 ### Board composition
 
 - Ordinary notes use measured flow layout.
@@ -104,8 +119,17 @@ The language model supplies semantic data. The renderer owns geometry, typograph
 - Invalid highlight references are removed before review.
 - One lesson uses at most one semantic visual family.
 - A newly applied graph, bar chart, or Venn diagram replaces the previous visual panel.
+- An absolute label's coordinate is the point it names. The renderer centres the label on
+  it, measures the real text, clamps it into its space, and separates overlapping labels.
+  A fixed label box is never correct: the model cannot know rendered text width.
+- Diagram space has y increasing downward. A question's own coordinates are converted, never
+  copied, or the figure renders upside down and contradicts the explanation.
 - An uploaded source image is fitted without distortion, and normalized source annotations map to that fitted image rectangle.
-- Existing source diagrams remain visible and are annotated directly rather than reconstructed beside the source.
+- An uploaded image stays visible as a compact reference, but is not annotated in place.
+  `_normalize_lesson` strips every planner-authored `source`- and `diagram`-space command
+  when an image is present, and `_inject_diagram` substitutes one trusted reconstruction
+  compiled from the vision contract. Annotating the original directly would need that branch
+  changed; today the enlarged copy is the only diagram a student sees.
 
 ## Architecture
 
@@ -136,8 +160,10 @@ flowchart LR
 
 ### Backend
 
-- One `TutorSession` actor per random browser capability ID.
-- Verified external OAuth callers and app-internal scheduled workflows are authorized.
+- One `TutorSession` actor per browser capability ID, owned by the account that first calls
+  `ensure`. A custom authorizer predicate requires that owner on every later call, so knowing
+  a session ID is not sufficient to read it. `TutorMessage` is app-internal only.
+- App-internal scheduled workflows re-enter the actor without an end-user identity.
 - Writers move state to `thinking` and schedule durable workflows.
 - Reboot Agent calls memoize LLM work across workflow replay.
 - Generation checks prevent superseded workflows from overwriting newer state.
@@ -162,21 +188,30 @@ flowchart LR
 
 ## Current acceptance evidence
 
-- Quadratic: correct answer A, actual parabola, vertex `(2,-1)`, y-intercept `(0,3)`.
-- Interruption: replacement explanation preserved the correct answer and used symmetry markers.
-- Venn: 35% left-only, 25% overlap, 20% right-only, correct union C) 80%.
-- Distribution: bars 0.20/0.50/0.30 with proportional SVG heights, correct expectation B) 1.1.
-- Uploaded geometry: read the image, annotated the existing square/triangle directly, and verified C) 18.
-- Automated: backend workflow/model tests, mypy, frontend renderer/reducer tests, and production build.
+Measured by the suites in `backend/eval/`, not by anecdote.
+
+- Lessons, 16 questions across algebra, probability, statistics, sets, geometry,
+  trigonometry, ratios, and four Reading & Writing types: 16/16 served with the correct
+  answer, 0/16 beats left unwritten, no degenerate segments.
+- Diagnoses, 12 pieces of student working with planted errors at known steps: 12/12 correct
+  verdicts, 12/12 exact error steps, 0/6 false accusations on correct submissions, twice.
+- Vision coordinate extraction is measured against a generated diagram with exact known
+  vertices. Reasoning stays off: at `none` the model reports a perfectly symmetric figure
+  (mean error 0.013, aspect 1.000); enabling it skews the figure and triples the error.
+- Single runs are noisy — identical configurations have swung 14/16 → 16/16 → 15/16. Prefer
+  the structural counters, which are enforced by code rather than luck.
+- Automated: backend workflow/model tests, mypy, frontend renderer/reducer tests, production
+  build. None of these can see a quality regression; only the evaluation suites can.
 
 ## Commercial launch requirements
 
 The following are release gates, not hidden “optional tools”:
 
-1. Configure a real production OAuth provider and bind sessions to account ownership.
+1. Configure a real production OAuth provider. Session ownership is implemented, but
+   `Application(oauth=...)` still passes `prod=None`, so it is only enforced in development.
 2. Add per-account quotas, provider cost budgets, and abuse/rate limits.
 3. Add billing and entitlement enforcement.
-4. Run an SAT evaluation set and define an accuracy threshold.
+4. Define an accuracy threshold. The evaluation set and its gate exist; the number does not.
 5. Add structured logs, latency/cost metrics, alerts, and privacy-safe error reporting.
 6. Publish privacy policy, terms, data retention, and AI-tutor limitations.
 7. Deploy behind TLS and verify secure microphone/WebSocket behavior.
