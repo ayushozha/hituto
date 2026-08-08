@@ -18,7 +18,9 @@ export function Whiteboard({ onExtract, extracted, collapsed, onToggle }: Whiteb
     <section className={`whiteboard${collapsed ? " is-collapsed" : ""}`} aria-label="Your working">
       <div className="whiteboard-header">
         <span>
-          {collapsed ? "Your working is still here" : "Write your steps — use the text tool, one step per line"}
+          {collapsed
+            ? "Your working is still here"
+            : "Click and type. Press Enter for each new step — it all stays in one block."}
         </span>
         <span className="whiteboard-count">{read}</span>
         <button type="button" className="whiteboard-toggle" onClick={onToggle}>
