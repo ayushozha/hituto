@@ -785,15 +785,6 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
           </button>
         </div>
 
-        {checking && (
-          <Whiteboard
-            onExtract={setBoardWork}
-            extracted={boardWork}
-            collapsed={boardCollapsed}
-            onToggle={() => setBoardCollapsed((current) => !current)}
-          />
-        )}
-
         {selectedImage && (
           <div className="image-attachment">
             <img src={selectedImage.dataUrl} alt="Selected SAT question" />
@@ -879,7 +870,15 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
         </div>
 
         <aside className="board-panel" aria-label="Teaching board">
-          {panelLesson ? (
+          {checking && (
+            <Whiteboard
+              onExtract={setBoardWork}
+              extracted={boardWork}
+              collapsed={boardCollapsed}
+              onToggle={() => setBoardCollapsed((current) => !current)}
+            />
+          )}
+          {checking && !boardCollapsed ? null : panelLesson ? (
             <>
               <div className="board-panel-header">
                 <span>

@@ -134,11 +134,15 @@ button { -webkit-tap-highlight-color: transparent; }
   gap: 18px;
 }
 
-.workspace:not(:has(.board-panel .teaching-surface)) {
+/* Collapse to one column only when the panel holds nothing at all — it may
+   hold the tutor's board or the student's whiteboard. */
+.workspace:not(:has(.board-panel .teaching-surface)):not(:has(.board-panel .whiteboard)) {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.workspace:not(:has(.board-panel .teaching-surface)) .board-panel { display: none; }
+.workspace:not(:has(.board-panel .teaching-surface)):not(:has(.board-panel .whiteboard)) .board-panel {
+  display: none;
+}
 
 .chat-column {
   min-height: 0;
@@ -840,6 +844,17 @@ button { -webkit-tap-highlight-color: transparent; }
 .composer-modes button:hover:not(:disabled) { border-color: #b9c6d2; color: #22303c; }
 .composer-modes button:disabled { opacity: 0.5; cursor: default; }
 .composer-modes .is-active { background: #1769e0; border-color: #1769e0; color: #fff; }
+
+/* Excalidraw falls back to its touch UI below roughly 730x500 — the tool
+   resets and click-to-type stops behaving. In the panel it has room to stay
+   in desktop mode; squeezed under the chat it never did. */
+.board-panel .whiteboard { flex: 1 1 auto; display: flex; flex-direction: column; margin: 0; border: 0; border-radius: 0; }
+/* A concrete floor: the flex chain gives no intrinsic height (Excalidraw's
+   canvases are absolutely positioned), and below ~500px tall it drops to
+   its touch UI. */
+.board-panel .whiteboard-canvas { flex: 1 1 auto; height: auto; min-height: 520px; }
+.board-panel .whiteboard.is-collapsed { flex: 0 0 auto; border-bottom: 1px solid #e8ecef; }
+.board-panel .whiteboard.is-collapsed .whiteboard-canvas { flex: 0 0 auto; }
 
 .whiteboard {
   margin-bottom: 10px;
