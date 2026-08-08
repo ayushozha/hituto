@@ -200,3 +200,22 @@ def test_a_bad_request_is_not_retried_forever() -> None:
     assert not _is_transient(ModelHTTPError(status_code=401, model_name="m"))
     assert not _is_transient(UserError("bad output type"))
     assert not _is_transient(ValueError("Upload a PNG or JPEG image"))
+
+
+def test_the_same_answer_written_differently_is_the_same_answer() -> None:
+    from tutor_servicer import _same_answer
+
+    # A follow-up that kept the answer must not be thrown away over typography.
+    assert _same_answer("A) (2, -1)", "A) (2, −1)")      # Unicode minus
+    assert _same_answer("C) 36π", "C) 36pi")             # pi
+    assert _same_answer("A) 500 · 2^(t/3)", "A) 500 * 2^(t/3)")
+    assert _same_answer("B) 21", "B)  21 ")
+
+
+def test_a_genuinely_different_answer_is_still_caught() -> None:
+    from tutor_servicer import _same_answer
+
+    # The guard exists so a follow-up cannot quietly teach a new answer.
+    assert not _same_answer("A) (2, -1)", "B) (-2, -1)")
+    assert not _same_answer("C) 18", "D) 24")
+    assert not _same_answer("B) 21", "B) 12")

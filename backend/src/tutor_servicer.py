@@ -126,6 +126,24 @@ def _is_transient(error: Exception) -> bool:
     return isinstance(error, ModelAPIError)
 
 
+def _same_answer(left: str, right: str) -> bool:
+    """
+    Compare answers by content, not typography.
+
+    Models write a Unicode minus, "·" for multiplication, and "π" for pi
+    interchangeably, so a byte comparison can reject a follow-up that kept the
+    answer perfectly well.
+    """
+    def canonical(text: str) -> str:
+        lowered = text.lower()
+        for dash in ("\u2212", "\u2013", "\u2014"):
+            lowered = lowered.replace(dash, "-")
+        lowered = lowered.replace("\u00b7", "*").replace("\u00d7", "*").replace("\u03c0", "pi")
+        return re.sub(r"[\s,]+", "", lowered)
+
+    return canonical(left) == canonical(right)
+
+
 def _safe_error(error: Exception) -> str:
     message = str(error).strip().splitlines()[0] if str(error).strip() else type(error).__name__
     return f"The tutor could not prepare this lesson: {message[:220]}"
@@ -1590,14 +1608,44 @@ class TutorSessionServicer(TutorSession.Servicer):
                 question_text=current.question_text,
             )
             old_answer = LessonPlan.model_validate_json(current.lesson_json).final_answer
-            if lesson.final_answer.strip() != old_answer.strip():
-                await cls._store_lesson_error(
-                    context,
-                    request.generation,
-                    "I stopped because the follow-up changed the verified answer. Please retry the original question.",
-                    "Reject answer drift",
+            if not _same_answer(lesson.final_answer, old_answer):
+                # One drift is usually the model rephrasing itself into a
+                # different claim, not a considered disagreement. Ask again
+                # before throwing away the student's follow-up.
+                log_event(
+                    "replan.drift",
+                    session=context.state_id,
+                    generation=request.generation,
+                    attempt=1,
                 )
-                return
+                retried = await lesson_replanner.run(
+                    context,
+                    f"{prompt}\n\nYour previous attempt changed the verified answer to "
+                    f"'{lesson.final_answer}'. The verified answer is '{old_answer}' and must not "
+                    "change. Explain the same answer differently.",
+                    variant="answer-drift-retry",
+                )
+                lesson = _normalize_lesson(
+                    retried.output.to_plan(),
+                    source_has_image=has_image,
+                    question_text=current.question_text,
+                )
+                if not _same_answer(lesson.final_answer, old_answer):
+                    log_event(
+                        "replan.drift",
+                        session=context.state_id,
+                        generation=request.generation,
+                        attempt=2,
+                    )
+                    await cls._store_lesson_error(
+                        context,
+                        request.generation,
+                        "I couldn't re-explain that without changing the answer I already "
+                        "verified, so I stopped rather than teach you something different. "
+                        "Your lesson is still here — try asking in a different way.",
+                        "Reject answer drift",
+                    )
+                    return
 
             lesson_json = lesson.model_dump_json()
 
