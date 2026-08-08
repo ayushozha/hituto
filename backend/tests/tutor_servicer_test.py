@@ -219,6 +219,23 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(after.last_student_message, "")
         self.assertEqual(remaining.messages, [])
 
+    async def test_erasing_does_not_break_voice_forever(self) -> None:
+        before = await self.session.snapshot(self.context)
+        await self.session.forget(self.context)
+
+        internal = self.rbt.create_external_context(
+            name=f"internal-{self.id()}", app_internal=True
+        )
+        # Shredding is irreversible, so the next token must be sealed into a
+        # scope that was never destroyed.
+        old_scope = tutor_servicer._voice_scope(self.session_id, 0)
+        new_scope = tutor_servicer._voice_scope(self.session_id, 1)
+        self.assertNotEqual(old_scope, new_scope)
+
+        granted = await self.session.request_voice_token(self.context)
+        self.assertGreater(granted.generation, before.voice_generation)
+        del internal
+
     async def test_forget_leaves_nothing_readable_behind(self) -> None:
         started = await self.session.start_lesson(
             self.context,

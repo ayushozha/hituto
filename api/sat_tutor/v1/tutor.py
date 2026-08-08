@@ -21,6 +21,10 @@ class TutorSessionState(Model):
     # The authenticated account this session belongs to. Stamped by `ensure`
     # on first use; afterwards no other account may read or write the session.
     owner_id: str = Field(tag=17, default="")
+    # Bumped by `forget`. Crypto-shredding is irreversible, so the scope it
+    # destroys must never be reused — otherwise voice stays broken forever
+    # after a student erases their data.
+    crypto_epoch: int = Field(tag=18, default=0)
 
 
 class TutorMessageState(Model):

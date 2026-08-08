@@ -696,9 +696,15 @@ def _diagnosis_to_lesson(diagnosis: WorkDiagnosis, question_text: str) -> Lesson
     )
 
 
-def _voice_scope(session_id: str) -> str:
-    """Crypto-shredding is per scope, so keep it per session, not per token."""
-    return f"voice-token:{session_id}"
+def _voice_scope(session_id: str, epoch: int) -> str:
+    """
+    One scope per session per erasure.
+
+    Per session so a single shred reaches every token; per epoch because a
+    shredded scope is dead permanently — reusing it after `forget` would leave
+    voice broken for the rest of that session's life.
+    """
+    return f"voice-token:{session_id}:{epoch}"
 
 
 def _voice_associated_data(session_id: str, generation: int) -> bytes:
@@ -985,8 +991,10 @@ class TutorSessionServicer(TutorSession.Servicer):
 
         await KeyManager.ref(APP_SHARED_KEY_MANAGER_ID).shred(
             context,
-            scope=_voice_scope(self.ref().state_id),
+            scope=_voice_scope(self.ref().state_id, self.state.crypto_epoch),
         )
+        # Never encrypt into the scope just destroyed.
+        self.state.crypto_epoch += 1
 
         self.state.question_text = ""
         self.state.source_kind = ""
@@ -1786,6 +1794,9 @@ class TutorSessionServicer(TutorSession.Servicer):
             context,
             grant_token,
         )
+        current = await TutorSession.ref().per_workflow(
+            "Read crypto epoch for voice token"
+        ).read(context)
         payload = json.loads(payload_text)
         access_token = str(payload.get("access_token", ""))
         if not access_token:
@@ -1801,14 +1812,21 @@ class TutorSessionServicer(TutorSession.Servicer):
                 context,
                 plaintext=access_token.encode("utf-8"),
                 associated_data=_voice_associated_data(context.state_id, request.generation),
-                scope=_voice_scope(context.state_id),
+                scope=_voice_scope(context.state_id, current.crypto_epoch),
                 key_manager_id=APP_SHARED_KEY_MANAGER_ID,
             )
         except Exception as error:
+            logger.warning("Could not seal the voice token: %s", error)
+            log_event(
+                "voice.seal_failed",
+                session=context.state_id,
+                generation=request.generation,
+                error=type(error).__name__,
+            )
             await cls._store_voice_error(
                 context,
                 request.generation,
-                f"Could not protect the temporary voice token: {str(error)[:160]}",
+                "Voice is unavailable right now. Captions and the board still work.",
             )
             return
         ciphertext_id = ciphertext.state_id
