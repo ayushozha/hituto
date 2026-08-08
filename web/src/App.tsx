@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useSignIn } from "@reboot-dev/reboot-react";
 import { useTutorSession } from "./api/sat_tutor/v1/tutor_rbt_react";
 import { TeachingCanvas } from "./components/TeachingCanvas";
+import { Whiteboard } from "./components/Whiteboard";
 import {
   DashboardPage,
   LandingPage,
@@ -228,6 +229,9 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   // When set, the composer submits the student's own working for diagnosis
   // instead of asking the tutor to solve something.
   const [checking, setChecking] = useState(false);
+  // Text read off the whiteboard. Kept apart from `draft` so the canvas and
+  // the textarea never overwrite each other.
+  const [boardWork, setBoardWork] = useState("");
 
   const generation = useRef(0);
   const lessonRequest = useRef(0);
@@ -528,9 +532,10 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     event.preventDefault();
     if (state === "thinking") return;
     const message = draft;
-    if (!message.trim() && !selectedImage) return;
+    const working = checking ? (boardWork.trim() || message) : message;
+    if (!working.trim() && !selectedImage) return;
     setDraft("");
-    if (checking) await checkWork(message);
+    if (checking) await checkWork(working);
     else if (lesson) await askFollowup(message);
     else await startLesson(message);
   }
@@ -623,7 +628,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   }
 
   const composerPlaceholder = checking
-    ? "Type the steps you tried, one per line — I’ll find the first one that breaks…"
+    ? "Write your steps on the whiteboard above, or type them here…"
     : lesson
       ? "Ask why, interrupt, or request a different explanation…"
       : "Ask any SAT question, paste the choices, or upload an image…";
@@ -734,6 +739,30 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
       </section>
 
       <form className="composer chat-composer" onSubmit={(event) => void submit(event)}>
+        {/* An unlabelled icon hid this entirely; the two modes are now named. */}
+        <div className="composer-modes" role="group" aria-label="What do you want the tutor to do?">
+          <button
+            type="button"
+            className={!checking ? "is-active" : ""}
+            aria-pressed={!checking}
+            onClick={() => setChecking(false)}
+            disabled={state === "thinking"}
+          >
+            Ask a question
+          </button>
+          <button
+            type="button"
+            className={checking ? "is-active" : ""}
+            aria-pressed={checking}
+            onClick={() => setChecking(true)}
+            disabled={state === "thinking"}
+          >
+            Check my work
+          </button>
+        </div>
+
+        {checking && <Whiteboard onExtract={setBoardWork} extracted={boardWork} />}
+
         {selectedImage && (
           <div className="image-attachment">
             <img src={selectedImage.dataUrl} alt="Selected SAT question" />
@@ -791,22 +820,16 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
             <span className="mic-glyph" />
           </button>
           <button
-            className={`icon-button check-button ${checking ? "check-live" : ""}`}
-            type="button"
-            aria-pressed={checking}
-            aria-label="Check my own working"
-            title="Check my own working"
-            onClick={() => setChecking((current) => !current)}
-            disabled={state === "thinking"}
-          >
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M4 12.5 9 17.5 20 6.5" />
-            </svg>
-          </button>
-          <button
             className="teach-button"
             type="submit"
-            disabled={state === "thinking" || (lesson && !checking ? !draft.trim() : (!draft.trim() && !selectedImage))}
+            disabled={
+              state === "thinking"
+              || (checking
+                ? !boardWork.trim() && !draft.trim()
+                : lesson
+                  ? !draft.trim()
+                  : !draft.trim() && !selectedImage)
+            }
           >
             {state === "thinking" ? "Thinking…" : checking ? "Check my work" : "Send"}
           </button>

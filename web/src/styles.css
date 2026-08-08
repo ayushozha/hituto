@@ -702,10 +702,59 @@ button { -webkit-tap-highlight-color: transparent; }
 .mic-button:hover:not(:disabled) { background: #e2edff; }
 .mic-live { background: #ffe9eb; color: #d83c4d; }
 
-.check-button { background: #f0f3f5; color: #536371; }
-.check-button:hover:not(:disabled) { color: #1a7f37; background: #e8f7ec; }
-.check-button svg { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
-.check-live { background: #e2f6e8; color: #1a7f37; }
+.composer-modes {
+  display: flex;
+  gap: 6px;
+  margin: 0 0 9px 2px;
+}
+
+.composer-modes button {
+  border: 1px solid #dfe5ea;
+  background: #fff;
+  color: #536371;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 600;
+  padding: 5px 13px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.composer-modes button:hover:not(:disabled) { border-color: #b9c6d2; color: #22303c; }
+.composer-modes button:disabled { opacity: 0.5; cursor: default; }
+.composer-modes .is-active { background: #1769e0; border-color: #1769e0; color: #fff; }
+
+.whiteboard {
+  margin-bottom: 10px;
+  border: 1px solid #dfe5ea;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.whiteboard-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 13px;
+  font-size: 0.78rem;
+  color: #6a7580;
+  border-bottom: 1px solid #eef2f5;
+}
+
+.whiteboard-count { color: #1a7f37; font-weight: 600; }
+
+/* Excalidraw needs a sized parent or it collapses to nothing. */
+.whiteboard-canvas { height: 340px; position: relative; }
+.whiteboard-canvas .excalidraw { --zIndex-layerUI: 4; }
+
+.whiteboard-loading {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: #6a7580;
+  font-size: 0.86rem;
+}
 .mic-live .mic-glyph { animation: breathe 1.2s infinite; }
 
 .mic-glyph {
