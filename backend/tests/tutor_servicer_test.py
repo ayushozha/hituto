@@ -138,7 +138,8 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
             name=f"test-{self.id()}",
             user_id=f"student-{self.id()}",
         )
-        self.session = TutorSession.ref(f"session-{self.id()}")
+        self.session_id = f"session-{self.id()}"
+        self.session = TutorSession.ref(self.session_id)
         await self.session.ensure(self.context)
 
     async def asyncTearDown(self) -> None:
@@ -150,6 +151,44 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
             snapshot = await asyncio.wait_for(anext(updates), timeout=10)
             if snapshot.generation == generation and snapshot.status in {"ready", "error"}:
                 return snapshot
+
+    async def test_another_account_cannot_read_or_write_this_session(self) -> None:
+        await self.session.start_lesson(
+            self.context,
+            question_text="For y=x^2-4x+3, what is the vertex?",
+            source_kind="text",
+        )
+        intruder = await self.rbt.create_external_context_as(
+            name=f"intruder-{self.id()}",
+            user_id=f"intruder-{self.id()}",
+        )
+        # A ref belongs to the context that first used it, so the intruder
+        # needs its own — same session id, different caller.
+        as_intruder = TutorSession.ref(self.session_id)
+
+        # The session id is a random browser value, so knowing it must not be
+        # enough — the caller has to be the account that claimed it.
+        with self.assertRaises(TutorSession.SnapshotAborted):
+            await as_intruder.snapshot(intruder)
+        with self.assertRaises(TutorSession.MessagesAborted):
+            await as_intruder.messages(intruder, cursor="", limit=20)
+        with self.assertRaises(TutorSession.ResetAborted):
+            await as_intruder.reset(intruder)
+
+        # The owner is unaffected.
+        snapshot = await self.session.snapshot(self.context)
+        self.assertEqual(snapshot.question_text, "For y=x^2-4x+3, what is the vertex?")
+
+    async def test_the_first_signed_in_caller_claims_the_session(self) -> None:
+        session_id = f"unclaimed-{self.id()}"
+        await TutorSession.ref(session_id).ensure(self.context)
+
+        stranger = await self.rbt.create_external_context_as(
+            name=f"stranger-{self.id()}",
+            user_id=f"stranger-{self.id()}",
+        )
+        with self.assertRaises(TutorSession.SnapshotAborted):
+            await TutorSession.ref(session_id).snapshot(stranger)
 
     async def test_student_starts_a_visual_lesson_and_sees_verified_state(self) -> None:
         started = await self.session.start_lesson(

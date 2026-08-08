@@ -8,10 +8,16 @@ import re
 from typing import Any, Sequence, Union
 
 import httpx
+import rbt.v1alpha1.errors_pb2 as errors
 from pydantic_ai import BinaryContent
 from pydantic_ai.messages import UserContent
 from rbt.std.ciphertext.v1.ciphertext_rbt import Ciphertext
-from reboot.aio.auth.authorizers import allow_if, has_verified_token, is_app_internal
+from reboot.aio.auth.authorizers import (
+    Authorizer,
+    AuthorizerRule,
+    allow_if,
+    is_app_internal,
+)
 from reboot.aio.contexts import ReaderContext, TransactionContext, WorkflowContext, WriterContext
 from reboot.aio.workflows import at_least_once
 from reboot.std.ciphertext.v1.ciphertext import (
@@ -19,7 +25,7 @@ from reboot.std.ciphertext.v1.ciphertext import (
     make_associated_data,
 )
 from reboot.std.collections.ordered_map.v1.ordered_map import OrderedMap
-from sat_tutor.v1.tutor import ChatMessage
+from sat_tutor.v1.tutor import ChatMessage, TutorSessionState
 from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession
 
 from lesson_models import (
@@ -644,9 +650,43 @@ def _assistant_message_text(lesson: LessonPlan) -> str:
     return f"{narration or lesson.answer_explanation}\n\nAnswer: {lesson.final_answer}"
 
 
+def _is_session_owner(
+    *,
+    context: ReaderContext,
+    state: TutorSessionState | None = None,
+    **kwargs: Any,
+) -> Authorizer.Decision:
+    """
+    A session belongs to one account.
+
+    The session id is a random value the browser chose, so "is the caller
+    signed in" is not a boundary — it lets any signed-in account read any
+    session whose id it learns. An unclaimed session is still open, because
+    `ensure` has to be able to stamp it; from then on it is that account's.
+    """
+    if context.auth is None or not context.auth.user_id:
+        return errors.Unauthenticated()
+    # `state` is None while the actor is still being constructed, which is
+    # exactly the `ensure` call that claims it — denying that locks every
+    # student out of their own first session.
+    if state is None or not state.owner_id:
+        return errors.Ok()
+    if state.owner_id == context.auth.user_id:
+        return errors.Ok()
+    return errors.PermissionDenied()
+
+
+def _session_access() -> AuthorizerRule[TutorSessionState, Any]:
+    # Scheduled lesson, replan, and voice workflows re-enter this actor as
+    # app-internal calls and carry no end-user identity.
+    return allow_if(any=[_is_session_owner, is_app_internal])
+
+
 class TutorMessageServicer(TutorMessage.Servicer):
     def authorizer(self):
-        return allow_if(any=[has_verified_token, is_app_internal])
+        # Browsers never address a message directly; they read the thread
+        # through `TutorSession.messages`, which is itself owner-gated.
+        return allow_if(all=[is_app_internal])
 
     async def set(
         self,
@@ -677,11 +717,14 @@ class TutorMessageServicer(TutorMessage.Servicer):
 
 class TutorSessionServicer(TutorSession.Servicer):
     def authorizer(self):
-        # Browser calls carry a verified OAuth identity; scheduled lesson and
-        # voice workflows re-enter this actor as app-internal calls.
-        return allow_if(any=[has_verified_token, is_app_internal])
+        return _session_access()
 
     async def ensure(self, context: WriterContext) -> None:
+        # Claim the session for whoever is signed in. Every later call is
+        # checked against this, so an id leaking to another account is no
+        # longer enough to read the student's lessons.
+        if not self.state.owner_id and context.auth is not None and context.auth.user_id:
+            self.state.owner_id = context.auth.user_id
         # Additively migrate existing browser sessions to the durable chat index.
         if not self.state.message_index_id:
             self.state.message_index_id = _message_index_id(

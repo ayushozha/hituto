@@ -18,6 +18,9 @@ class TutorSessionState(Model):
     message_index_id: str = Field(tag=14, default="")
     chat_revision: int = Field(tag=15, default=0)
     message_count: int = Field(tag=16, default=0)
+    # The authenticated account this session belongs to. Stamped by `ensure`
+    # on first use; afterwards no other account may read or write the session.
+    owner_id: str = Field(tag=17, default="")
 
 
 class TutorMessageState(Model):
