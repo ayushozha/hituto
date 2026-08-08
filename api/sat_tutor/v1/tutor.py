@@ -86,6 +86,9 @@ class ReplanLessonRequest(Model):
 
 class CheckWorkRequest(Model):
     student_work: str = Field(tag=1, default="")
+    # The question this working belongs to. Empty means "the one this session
+    # is already on".
+    question_text: str = Field(tag=2, default="")
 
 
 class CheckWorkResponse(Model):
@@ -95,6 +98,7 @@ class CheckWorkResponse(Model):
 class ReviewWorkRequest(Model):
     student_work: str = Field(tag=1, default="")
     generation: int = Field(tag=2, default=0)
+    question_text: str = Field(tag=3, default="")
 
 
 class RequestVoiceTokenResponse(Model):

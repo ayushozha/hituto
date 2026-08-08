@@ -117,6 +117,8 @@ button { -webkit-tap-highlight-color: transparent; }
 .chat-app-shell {
   height: 100vh;
   overflow: hidden;
+  /* Keep a readable conversation no matter how tall the composer grows. */
+  grid-template-rows: 64px minmax(150px, 1fr) auto;
   background:
     radial-gradient(circle at 50% -20%, rgba(255, 255, 255, 0.96), transparent 42%),
     #f3f5f4;
@@ -744,9 +746,32 @@ button { -webkit-tap-highlight-color: transparent; }
 
 .whiteboard-count { color: #1a7f37; font-weight: 600; }
 
-/* Excalidraw needs a sized parent or it collapses to nothing. */
-.whiteboard-canvas { height: 340px; position: relative; }
+/* Excalidraw needs a sized parent or it collapses to nothing — but a fixed
+   height starves the conversation above it, since the composer row is
+   `auto` in the shell grid. Scale with the viewport instead. */
+.whiteboard-canvas {
+  height: clamp(160px, 28vh, 300px);
+  position: relative;
+  transition: height 0.16s ease;
+}
+
 .whiteboard-canvas .excalidraw { --zIndex-layerUI: 4; }
+
+/* Collapsed rather than unmounted, so the student's work survives. */
+.whiteboard.is-collapsed .whiteboard-canvas { height: 0; }
+
+.whiteboard-toggle {
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1769e0;
+  cursor: pointer;
+  padding: 0;
+}
+
+.whiteboard-toggle:hover { text-decoration: underline; }
 
 .whiteboard-loading {
   display: grid;

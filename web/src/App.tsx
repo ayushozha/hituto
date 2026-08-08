@@ -232,6 +232,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   // Text read off the whiteboard. Kept apart from `draft` so the canvas and
   // the textarea never overwrite each other.
   const [boardWork, setBoardWork] = useState("");
+  const [boardCollapsed, setBoardCollapsed] = useState(false);
 
   const generation = useRef(0);
   const lessonRequest = useRef(0);
@@ -493,7 +494,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     await playLesson(parsed, 0, true);
   }
 
-  async function checkWork(work: string): Promise<void> {
+  async function checkWork(work: string, questionText: string): Promise<void> {
     if (!work.trim()) return;
     const requestId = ++lessonRequest.current;
     listener.current.stop();
@@ -502,7 +503,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     setVoiceNote("");
     setCaption("I’m reading your steps and checking them against my own working…");
     const { response, aborted } = await session.mutators.checkWork(
-      { studentWork: work.trim() },
+      { studentWork: work.trim(), questionText: questionText.trim() },
       { idempotencyKey: crypto.randomUUID() },
     );
     if (aborted || !response) {
@@ -532,10 +533,16 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     event.preventDefault();
     if (state === "thinking") return;
     const message = draft;
-    const working = checking ? (boardWork.trim() || message) : message;
+    const onBoard = boardWork.trim();
+    // With working on the board, the text box names the question it belongs
+    // to. With an empty board, the text box is the working itself.
+    const working = checking ? (onBoard || message) : message;
     if (!working.trim() && !selectedImage) return;
     setDraft("");
-    if (checking) await checkWork(working);
+    if (checking) {
+      setBoardCollapsed(true);
+      await checkWork(working, onBoard ? message : "");
+    }
     else if (lesson) await askFollowup(message);
     else await startLesson(message);
   }
@@ -628,7 +635,9 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   }
 
   const composerPlaceholder = checking
-    ? "Write your steps on the whiteboard above, or type them here…"
+    ? (boardWork.trim()
+        ? "Optional: paste the question this working is for…"
+        : "Write your steps on the whiteboard above, or type them here…")
     : lesson
       ? "Ask why, interrupt, or request a different explanation…"
       : "Ask any SAT question, paste the choices, or upload an image…";
@@ -761,7 +770,14 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
           </button>
         </div>
 
-        {checking && <Whiteboard onExtract={setBoardWork} extracted={boardWork} />}
+        {checking && (
+          <Whiteboard
+            onExtract={setBoardWork}
+            extracted={boardWork}
+            collapsed={boardCollapsed}
+            onToggle={() => setBoardCollapsed((current) => !current)}
+          />
+        )}
 
         {selectedImage && (
           <div className="image-attachment">
@@ -837,7 +853,9 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
         <div className="composer-hint">
           {voiceNote
             || (checking
-              ? "Paste your own steps. I’ll mark the first one that breaks, not solve it for you."
+              ? (boardWork.trim()
+                ? "I’ll mark the first step that breaks. Add the question above if it isn’t the one we’re on."
+                : "Paste your own steps. I’ll mark the first one that breaks, not solve it for you.")
               : lesson
                 ? "Interrupt at any time—type or use the microphone."
                 : "Questions, answer choices, and clear PNG/JPEG images are supported.")}

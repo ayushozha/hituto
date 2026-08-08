@@ -919,6 +919,7 @@ class TutorSessionServicer(TutorSession.Servicer):
         await self.ref().schedule().review_work(
             context,
             student_work=request.student_work,
+            question_text=request.question_text,
             generation=generation,
         )
         return TutorSession.CheckWorkResponse(generation=generation)
@@ -952,7 +953,13 @@ class TutorSessionServicer(TutorSession.Servicer):
 
         # Read once, memoized, so a replay builds the identical prompt.
         current = await TutorSession.ref().per_workflow("Read question for work check").read(context)
-        question_text = current.question_text.strip() or "The student did not paste the original question."
+        # Working submitted with its own question wins: the session may still
+        # be sitting on an unrelated lesson from earlier in the conversation.
+        question_text = (
+            request.question_text.strip()
+            or current.question_text.strip()
+            or "The student did not paste the original question."
+        )
 
         try:
             prompt = (
