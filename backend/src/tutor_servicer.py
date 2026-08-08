@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+from datetime import timedelta
 from typing import Any, Sequence, Union
 
 import httpx
@@ -26,7 +27,7 @@ from reboot.std.ciphertext.v1.ciphertext import (
 )
 from reboot.std.collections.ordered_map.v1.ordered_map import OrderedMap
 from sat_tutor.v1.tutor import ChatMessage, TutorSessionState
-from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession
+from sat_tutor.v1.tutor_rbt import TutorMessage, TutorSession, UsageLedger
 
 from lesson_models import (
     HighlightCommand,
@@ -61,6 +62,13 @@ MAX_DIAGRAM_GEOMETRY = 9
 # same vertex. Roughly 1% of the panel: tight enough not to merge distinct
 # features, loose enough to close a hand-estimated corner.
 VERTEX_SNAP_TOLERANCE = 0.012
+# A lesson costs four to six provider calls, so an uncapped account is an
+# uncapped bill. Deliberately generous: a real student doing a full practice
+# set stays well under, and only a runaway loop notices.
+DAILY_LESSON_LIMIT = int(os.environ.get("DAILY_LESSON_LIMIT", "40"))
+DAILY_CHECK_LIMIT = int(os.environ.get("DAILY_CHECK_LIMIT", "80"))
+BURST_LIMIT = int(os.environ.get("BURST_LIMIT", "8"))
+BURST_WINDOW = timedelta(minutes=1)
 PromptContent = Union[str, Sequence[UserContent]]
 logger = logging.getLogger(__name__)
 
@@ -682,6 +690,72 @@ def _session_access() -> AuthorizerRule[TutorSessionState, Any]:
     return allow_if(any=[_is_session_owner, is_app_internal])
 
 
+class UsageLedgerServicer(UsageLedger.Servicer):
+    """
+    One ledger per account, capping how much provider spend it can cause.
+
+    Counters are reset by scheduled calls rather than by reading the clock:
+    a writer that consults wall time produces a different result when Reboot
+    re-runs it to validate effects. `schedule(when=...)` is persisted, so the
+    resets survive a restart.
+    """
+
+    def authorizer(self):
+        return allow_if(all=[is_app_internal])
+
+    async def consume(
+        self,
+        context: WriterContext,
+        request: UsageLedger.ConsumeRequest,
+    ) -> UsageLedger.ConsumeResponse:
+        is_check = request.kind == "check"
+        used = self.state.checks_today if is_check else self.state.lessons_today
+        limit = DAILY_CHECK_LIMIT if is_check else DAILY_LESSON_LIMIT
+
+        if self.state.recent_calls >= BURST_LIMIT:
+            return UsageLedger.ConsumeResponse(
+                allowed=False,
+                message="That is a lot of requests at once. Give me a minute to catch up.",
+            )
+        if used >= limit:
+            noun = "work checks" if is_check else "lessons"
+            return UsageLedger.ConsumeResponse(
+                allowed=False,
+                message=f"You have used today's {noun}. This resets in a day.",
+            )
+
+        if is_check:
+            self.state.checks_today += 1
+        else:
+            self.state.lessons_today += 1
+        self.state.recent_calls += 1
+
+        if not self.state.day_reset_scheduled:
+            self.state.day_reset_scheduled = True
+            await self.ref().schedule(when=timedelta(days=1)).reset_day(context)
+        if not self.state.window_reset_scheduled:
+            self.state.window_reset_scheduled = True
+            await self.ref().schedule(when=BURST_WINDOW).reset_window(context)
+
+        return UsageLedger.ConsumeResponse(allowed=True)
+
+    async def reset_day(self, context: WriterContext) -> None:
+        self.state.lessons_today = 0
+        self.state.checks_today = 0
+        self.state.day_reset_scheduled = False
+
+    async def reset_window(self, context: WriterContext) -> None:
+        self.state.recent_calls = 0
+        self.state.window_reset_scheduled = False
+
+    async def snapshot(self, context: ReaderContext) -> UsageLedger.SnapshotResponse:
+        return UsageLedger.SnapshotResponse(
+            lessons_today=self.state.lessons_today,
+            checks_today=self.state.checks_today,
+            recent_calls=self.state.recent_calls,
+        )
+
+
 class TutorMessageServicer(TutorMessage.Servicer):
     def authorizer(self):
         # Browsers never address a message directly; they read the thread
@@ -838,11 +912,39 @@ class TutorSessionServicer(TutorSession.Servicer):
         )
         self.state.message_count += 1
 
+    async def _within_limits(
+        self,
+        context: TransactionContext,
+        kind: str,
+    ) -> str:
+        """Charge this request to the account, or say why it cannot run."""
+        # Sessions predating ownership have no account, so fall back to the
+        # session itself — an uncapped path is worse than a coarse one.
+        account = self.state.owner_id or f"session:{self.ref().state_id}"
+        allowance = await UsageLedger.ref(account).consume(context, kind=kind)
+        return "" if allowance.allowed else allowance.message
+
+    async def _refuse(
+        self,
+        context: TransactionContext,
+        message: str,
+    ) -> int:
+        """Report a refusal through the same path the student already knows."""
+        self.state.generation += 1
+        self.state.status = "error"
+        self.state.error_message = message
+        return self.state.generation
+
     async def start_lesson(
         self,
         context: TransactionContext,
         request: TutorSession.StartLessonRequest,
     ) -> TutorSession.StartLessonResponse:
+        refusal = await self._within_limits(context, "lesson")
+        if refusal:
+            return TutorSession.StartLessonResponse(
+                generation=await self._refuse(context, refusal)
+            )
         self.state.generation += 1
         generation = self.state.generation
         self.state.question_text = request.question_text.strip()
@@ -879,6 +981,11 @@ class TutorSessionServicer(TutorSession.Servicer):
         context: TransactionContext,
         request: TutorSession.StartReplanRequest,
     ) -> TutorSession.StartReplanResponse:
+        refusal = await self._within_limits(context, "lesson")
+        if refusal:
+            return TutorSession.StartReplanResponse(
+                generation=await self._refuse(context, refusal)
+            )
         self.state.generation += 1
         generation = self.state.generation
         self.state.status = "thinking"
@@ -905,6 +1012,11 @@ class TutorSessionServicer(TutorSession.Servicer):
         context: TransactionContext,
         request: TutorSession.CheckWorkRequest,
     ) -> TutorSession.CheckWorkResponse:
+        refusal = await self._within_limits(context, "check")
+        if refusal:
+            return TutorSession.CheckWorkResponse(
+                generation=await self._refuse(context, refusal)
+            )
         self.state.generation += 1
         generation = self.state.generation
         self.state.status = "thinking"

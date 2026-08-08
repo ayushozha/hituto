@@ -6,7 +6,7 @@ from reboot.aio.applications import Application
 from reboot.aio.contexts import WorkflowContext
 from reboot.aio.tests import Reboot
 from reboot.std.collections.ordered_map.v1.ordered_map import ordered_map_library
-from sat_tutor.v1.tutor_rbt import TutorSession
+from sat_tutor.v1.tutor_rbt import TutorSession, UsageLedger
 
 from lesson_models import (
     HighlightCommand,
@@ -15,9 +15,11 @@ from lesson_models import (
     TextCommand,
     WorkDiagnosis,
 )
+import tutor_servicer
 from tutor_servicer import (
     TutorMessageServicer,
     TutorSessionServicer,
+    UsageLedgerServicer,
     _assistant_message_text,
     _compile_diagram,
     _diagnosis_to_lesson,
@@ -130,7 +132,11 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
         await self.rbt.start()
         await self.rbt.up(
             Application(
-                servicers=[DeterministicTutorSessionServicer, TutorMessageServicer],
+                servicers=[
+                    DeterministicTutorSessionServicer,
+                    TutorMessageServicer,
+                    UsageLedgerServicer,
+                ],
                 libraries=[ordered_map_library()],
             )
         )
@@ -151,6 +157,40 @@ class TestTutorSession(unittest.IsolatedAsyncioTestCase):
             snapshot = await asyncio.wait_for(anext(updates), timeout=10)
             if snapshot.generation == generation and snapshot.status in {"ready", "error"}:
                 return snapshot
+
+    async def test_a_runaway_account_is_capped_without_an_error_page(self) -> None:
+        # A lesson is four to six provider calls, so the burst limit is the
+        # only thing between one loop and an uncapped bill.
+        for _ in range(tutor_servicer.BURST_LIMIT):
+            await self.session.start_lesson(
+                self.context, question_text="What is 2 + 2?", source_kind="text"
+            )
+
+        blocked = await self.session.start_lesson(
+            self.context, question_text="What is 2 + 2?", source_kind="text"
+        )
+        snapshot = await self.session.snapshot(self.context)
+
+        # Refused through the status the student already understands, not an
+        # exception that would surface as a broken page.
+        self.assertEqual(snapshot.status, "error")
+        self.assertIn("minute", snapshot.error_message)
+        self.assertEqual(snapshot.generation, blocked.generation)
+
+    async def test_work_checks_and_lessons_have_separate_allowances(self) -> None:
+        # The ledger is app-internal only: a student must not be able to read
+        # or spend their own allowance directly.
+        internal = self.rbt.create_external_context(
+            name=f"internal-{self.id()}", app_internal=True
+        )
+        ledger = UsageLedger.ref(f"student-{self.id()}")
+        for _ in range(3):
+            await ledger.consume(internal, kind="check")
+
+        usage = await ledger.snapshot(internal)
+
+        self.assertEqual(usage.checks_today, 3)
+        self.assertEqual(usage.lessons_today, 0)
 
     async def test_another_account_cannot_read_or_write_this_session(self) -> None:
         await self.session.start_lesson(

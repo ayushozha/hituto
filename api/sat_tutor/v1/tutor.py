@@ -160,6 +160,41 @@ class TutorMessageSnapshotResponse(Model):
     status: str = Field(tag=7, default="")
 
 
+class UsageLedgerState(Model):
+    """Per-account usage, so provider spend has a ceiling."""
+
+    lessons_today: int = Field(tag=1, default=0)
+    checks_today: int = Field(tag=2, default=0)
+    recent_calls: int = Field(tag=3, default=0)
+    day_reset_scheduled: bool = Field(tag=4, default=False)
+    window_reset_scheduled: bool = Field(tag=5, default=False)
+
+
+class ConsumeRequest(Model):
+    # "check" for a work check; anything else counts as a lesson. Reboot only
+    # allows a field's zero value as its default.
+    kind: str = Field(tag=1, default="")
+
+
+class ConsumeResponse(Model):
+    allowed: bool = Field(tag=1, default=False)
+    message: str = Field(tag=2, default="")
+
+
+class UsageSnapshotResponse(Model):
+    lessons_today: int = Field(tag=1, default=0)
+    checks_today: int = Field(tag=2, default=0)
+    recent_calls: int = Field(tag=3, default=0)
+
+
+UsageLedgerMethods = Methods(
+    consume=Writer(request=ConsumeRequest, response=ConsumeResponse, mcp=None),
+    reset_day=Writer(request=None, response=None, mcp=None),
+    reset_window=Writer(request=None, response=None, mcp=None),
+    snapshot=Reader(request=None, response=UsageSnapshotResponse, mcp=None),
+)
+
+
 TutorSessionMethods = Methods(
     ensure=Writer(request=None, response=None, mcp=None),
     snapshot=Reader(request=None, response=SnapshotResponse, mcp=None),
@@ -231,5 +266,9 @@ api = API(
     TutorMessage=Type(
         state=TutorMessageState,
         methods=TutorMessageMethods,
+    ),
+    UsageLedger=Type(
+        state=UsageLedgerState,
+        methods=UsageLedgerMethods,
     ),
 )

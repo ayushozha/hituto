@@ -16,7 +16,11 @@ from reboot.aio.auth.oauth_providers import (
 from reboot.std.ciphertext.v1.ciphertext import ciphertext_library
 from reboot.std.collections.ordered_map.v1.ordered_map import ordered_map_library
 
-from tutor_servicer import TutorMessageServicer, TutorSessionServicer
+from tutor_servicer import (
+    TutorMessageServicer,
+    TutorSessionServicer,
+    UsageLedgerServicer,
+)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -67,7 +71,7 @@ def production_oauth_provider() -> Optional[RegisteredOAuthProvider]:
 
 async def main() -> None:
     await Application(
-        servicers=[TutorSessionServicer, TutorMessageServicer],
+        servicers=[TutorSessionServicer, TutorMessageServicer, UsageLedgerServicer],
         libraries=[ciphertext_library(), ordered_map_library()],
         oauth=OAuthProviderByEnvironment(
             dev=Development(),

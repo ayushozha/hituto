@@ -51,8 +51,11 @@
       development account picker and ownership is only enforced there.
 - [x] Store the authenticated owner on every session and enforce ownership. Sessions created
       before this carry no owner and stay claimable — expunge dev state before relying on it.
-- [ ] Add account-level daily/monthly usage quotas.
-- [ ] Add request rate limits and automated abuse protection.
+- [x] Add account-level daily usage quotas and a per-minute burst limit, enforced on the
+      three paths that spend provider calls. Tune with DAILY_LESSON_LIMIT,
+      DAILY_CHECK_LIMIT, and BURST_LIMIT.
+- [ ] Add automated abuse protection beyond per-account limits (a single actor with many
+      accounts is still uncapped).
 - [ ] Add billing, subscription status, and entitlement checks.
 - [ ] Replace private-beta pricing copy with validated plans only after product pricing is decided.
 - [ ] Add an operator view for usage, errors, model spend, and Deepgram spend.
