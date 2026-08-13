@@ -44,9 +44,7 @@ async def timed(event: str, **fields: Any) -> AsyncIterator[dict[str, Any]]:
     useful for outcomes only known at the end, like whether a reviewer
     approved.
 
-    Reboot re-runs a method to validate its effects, so a block can be timed
-    twice with different durations. That is noise in the logs, not incorrect
-    state: nothing here is persisted.
+    Timing is observational only; nothing in this helper is persisted.
     """
     started = time.monotonic()
     extra: dict[str, Any] = {}

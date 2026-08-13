@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { MouseEvent, ReactNode } from "react";
-import { useSignOut } from "@reboot-dev/reboot-react";
 import type { LessonPlan } from "../types/lesson";
 
 export function navigateTo(path: string): void {
@@ -52,7 +51,7 @@ function PublicHeader() {
       <nav className="marketing-nav" aria-label="Main navigation">
         <a href="/#how-it-works">How it works</a>
         <RouteLink path="/pricing">Pricing</RouteLink>
-        <RouteLink path="/app" className="nav-sign-in">Sign in</RouteLink>
+        <RouteLink path="/app" className="nav-open-tutor">Open tutor</RouteLink>
         <RouteLink path="/app" className="nav-cta">Start learning</RouteLink>
       </nav>
     </header>
@@ -210,8 +209,8 @@ export function SignInPage({ onSignIn, error = "", loading = false }: { onSignIn
         <div className={`auth-card ${error ? "is-error" : ""}`}>
           <span className="eyebrow"><i /> Your personal SAT teacher</span>
           <h1>{error ? "The classroom couldn’t open." : "Ready when you are."}</h1>
-          <p>{error || "Sign in to start a live voice lesson. Your tutor will solve, draw, and explain—and you can interrupt at any time."}</p>
-          {!error && <button type="button" className="primary-action" onClick={onSignIn} disabled={loading}>{loading ? "Opening…" : "Continue to your tutor"}<ArrowIcon /></button>}
+          <p>{error || "Open a private lesson saved to this browser. Your tutor will solve, draw, and explain—and you can interrupt at any time."}</p>
+          <button type="button" className="primary-action" onClick={onSignIn} disabled={loading}>{loading ? "Opening…" : error ? "Try again" : "Continue to your tutor"}<ArrowIcon /></button>
           <small>Private beta · No credit card required</small>
         </div>
       </main>
@@ -220,7 +219,6 @@ export function SignInPage({ onSignIn, error = "", loading = false }: { onSignIn
 }
 
 function DashboardHeader() {
-  const signOut = useSignOut();
   return (
     <header className="dashboard-header">
       <Brand />
@@ -228,9 +226,9 @@ function DashboardHeader() {
         <RouteLink path="/dashboard" className="is-active">Dashboard</RouteLink>
         <RouteLink path="/app">Live tutor</RouteLink>
       </nav>
-      <button type="button" className="account-button" onClick={() => signOut()} aria-label="Sign out">
-        <span>Student</span><i>S</i>
-      </button>
+      <span className="account-button" aria-label="Local browser profile">
+        <span>This browser</span><i>S</i>
+      </span>
     </header>
   );
 }
@@ -252,9 +250,8 @@ function DeleteMyData({ onForget }: { onForget: () => Promise<number> }) {
         <span className="panel-kicker">Your data</span>
         <h2>Erased.</h2>
         <p>
-          Your questions, working, and {erased} message{erased === 1 ? "" : "s"} were
-          overwritten, and the keys protecting anything encrypted were destroyed. None of it
-          can be recovered.
+          Your questions, working, and {erased} message{erased === 1 ? "" : "s"} were deleted
+          from the tutor database. Temporary voice tokens were never stored.
         </p>
       </section>
     );
@@ -265,8 +262,8 @@ function DeleteMyData({ onForget }: { onForget: () => Promise<number> }) {
       <span className="panel-kicker">Your data</span>
       <h2>Delete everything you have asked me</h2>
       <p>
-        Your questions, your working, and every lesson are overwritten rather than hidden,
-        and the keys protecting anything encrypted are destroyed. This cannot be undone.
+        Your questions, working, and every lesson will be deleted from the tutor database.
+        Temporary voice tokens are never stored. This cannot be undone in the app.
       </p>
       {stage === "idle" ? (
         <button type="button" className="danger-action" onClick={() => setStage("confirming")}>

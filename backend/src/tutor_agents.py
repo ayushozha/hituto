@@ -1,10 +1,10 @@
 import os
 from typing import Optional
 
+from pydantic_ai import Agent
 from pydantic_ai.models import Model
 from pydantic_ai.models.openai import OpenAIChatModel, OpenAIChatModelSettings
 from pydantic_ai.providers.openai import OpenAIProvider
-from reboot.agents.pydantic_ai import Agent
 
 from lesson_models import (
     ImageQuestionAnalysis,
@@ -290,7 +290,7 @@ VISION_MODEL = _build_model(
 # own verbal description and the square comes back skewed — the reviewer's 0.04
 # source-annotation tolerance is then breached, and the result stops being
 # deterministic across replays. 'none' is also the only setting whose output was
-# byte-identical across trials, which matters for durable workflow replay.
+# byte-identical across trials, which makes evaluation comparisons meaningful.
 #
 # Fireworks accepts {none, low, medium, high, xhigh, max, adaptive}:
 # https://docs.fireworks.ai/api-reference/post-chatcompletions

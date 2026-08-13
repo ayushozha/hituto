@@ -10,20 +10,20 @@ The lesson is the interface. A student pastes a complete SAT question or uploads
 
 The tutor also reads work the student has done themselves. In "check my work" the student writes their own steps — on a whiteboard or in the text box — and the tutor finds the first one that breaks, explains the idea behind the slip, and hands back a hint rather than the answer.
 
-The classroom is a chat thread with two named modes and no course navigation or teaching-tool picker. A separate commercial shell gives the product a public landing page, private-beta pricing, and an authenticated student dashboard without cluttering the live lesson.
+The classroom is a chat thread with two named modes and no course navigation or teaching-tool picker. A separate commercial shell gives the product a public landing page, private-beta pricing, and a browser-local student dashboard without cluttering the live lesson.
 
 ## Route surface
 
 - `/` — public landing page with a representative voice-and-board product demonstration.
 - `/pricing` — honest private-beta access page. Billing is not presented as working until it is actually enforced.
-- `/dashboard` — authenticated student home showing the real current browser lesson or a first-lesson empty state.
-- `/app` — authenticated live tutor classroom.
+- `/dashboard` — browser-local student home showing the current lesson or a first-lesson empty state.
+- `/app` — live tutor classroom backed by the anonymous browser session.
 
 ## MVP scope
 
 ### Included
 
-1. Public commercial entry and authenticated browser product.
+1. Public commercial entry and browser-scoped beta product.
 2. Multiline text questions for SAT Math and Reading & Writing.
 3. One PNG or JPEG question image up to 4 MB, with optional typed context.
 4. A planner pass followed by an independent reviewer pass.
@@ -138,22 +138,23 @@ The language model supplies semantic data. The renderer owns geometry, typograph
 ```mermaid
 flowchart LR
     Student["Student"] <--> Web["React classroom\nSVG + captions + audio"]
-    Web <--> Session["Reboot TutorSession\nauth + durable state"]
-    Session <--> Planner["Planner workflow"]
+    Web <--> API["FastAPI JSON API\nHttpOnly browser session"]
+    API <--> DB["SQLite\nlessons + messages + usage"]
+    API <--> Planner["Planner request"]
     Planner --> Reviewer["Independent reviewer"]
-    Session <--> Replanner["Interruption replanner"]
+    API <--> Replanner["Interruption replanner"]
     Planner <--> Fireworks["Fireworks text + vision models"]
     Reviewer <--> Fireworks
     Replanner <--> Fireworks
     Web <--> Deepgram["Deepgram STT/TTS"]
-    Session <--> Token["Encrypted one-time voice token"]
+    API --> Token["Short-lived voice token\nnot persisted"]
 ```
 
 ### Browser
 
-- React, TypeScript, Vite, Reboot generated hooks.
+- React, TypeScript, Vite, and a small typed REST client.
 - Lightweight History API routing for the landing, pricing, dashboard, and classroom surfaces.
-- Public pages do not construct tutor session state; protected pages pass through the Reboot OAuth session gate.
+- Public pages do not load tutor state; classroom and dashboard pages use the anonymous browser session.
 - React SVG and `foreignObject` layers.
 - KaTeX for notation and MathJS for checked local curve evaluation.
 - Deepgram audio playback and microphone capture.
@@ -162,14 +163,12 @@ flowchart LR
 
 ### Backend
 
-- One `TutorSession` actor per browser capability ID, owned by the account that first calls
-  `ensure`. A custom authorizer predicate requires that owner on every later call, so knowing
-  a session ID is not sufficient to read it. `TutorMessage` is app-internal only.
-- App-internal scheduled workflows re-enter the actor without an end-user identity.
-- Writers move state to `thinking` and schedule durable workflows.
-- Reboot Agent calls memoize LLM work across workflow replay.
-- Generation checks prevent superseded workflows from overwriting newer state.
-- Temporary Deepgram tokens are encrypted with Reboot Ciphertext and consumed once.
+- FastAPI owns the `/api` contract and sets a random, HttpOnly `sat_session` cookie.
+- SQLite stores one snapshot, ordered messages, and usage counters per browser session.
+- Requests move state to `thinking`, call the provider, then store `ready` or `error`.
+- Generation checks prevent superseded requests from overwriting newer state.
+- Temporary Deepgram tokens are returned immediately and never persisted.
+- The browser cookie is not user authentication; real accounts remain a release gate.
 
 ### Model path
 
@@ -180,8 +179,7 @@ flowchart LR
 
 ## Failure behavior
 
-- No browser deadline converts a slow durable workflow into a false failure.
-- Status copy changes as a request takes longer and always leaves “New question” available.
+- Provider work has a bounded server deadline and always leaves “New question” available.
 - Backend `error` state is terminal for that generation and displays a concise student-facing message.
 - Reviewer details are logged server-side, not exposed as a wall of internal diagnostics.
 - Voice failure preserves captions and board animation.
@@ -202,15 +200,14 @@ Measured by the suites in `backend/eval/`, not by anecdote.
   (mean error 0.013, aspect 1.000); enabling it skews the figure and triples the error.
 - Single runs are noisy — identical configurations have swung 14/16 → 16/16 → 15/16. Prefer
   the structural counters, which are enforced by code rather than luck.
-- Automated: backend workflow/model tests, mypy, frontend renderer/reducer tests, production
+- Automated: backend API/store/model tests, mypy, frontend renderer/reducer tests, production
   build. None of these can see a quality regression; only the evaluation suites can.
 
 ## Commercial launch requirements
 
 The following are release gates, not hidden “optional tools”:
 
-1. Configure a real production OAuth provider. Session ownership is implemented, but
-   `Application(oauth=...)` still passes `prod=None`, so it is only enforced in development.
+1. Add real authentication and bind every SQLite session to a verified account.
 2. Add per-account quotas, provider cost budgets, and abuse/rate limits.
 3. Add billing and entitlement enforcement.
 4. Define an accuracy threshold. The evaluation set and its gate exist; the number does not.

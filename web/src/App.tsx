@@ -1,6 +1,4 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { useSignIn } from "@reboot-dev/reboot-react";
-import { useTutorSession } from "./api/sat_tutor/v1/tutor_rbt_react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { TeachingCanvas } from "./components/TeachingCanvas";
 import { Whiteboard } from "./components/Whiteboard";
 import {
@@ -13,13 +11,13 @@ import {
 } from "./components/ProductPages";
 import { DeepgramListener, DeepgramSpeech } from "./lib/deepgram";
 import { applySceneCommand, emptyScene, type SceneState } from "./lib/scene";
+import { useTutorSession } from "./lib/tutorApi";
 import {
   lessonPlanSchema,
   type LessonPlan,
   type TutorState,
 } from "./types/lesson";
 
-const SESSION_KEY = "sat-live-tutor-session-id";
 const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
 const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png"]);
 
@@ -32,24 +30,12 @@ interface SelectedQuestionImage {
   height: number;
 }
 
-function browserSessionId(): string {
-  const current = window.localStorage.getItem(SESSION_KEY);
-  if (current) return current;
-  const created = `browser-${crypto.randomUUID()}`;
-  window.localStorage.setItem(SESSION_KEY, created);
-  return created;
-}
-
 function sleep(milliseconds: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
 }
 
 function estimatedSpeechMilliseconds(text: string): number {
   return Math.max(1_400, Math.min(15_000, (text.trim().split(/\s+/).length / 155) * 60_000));
-}
-
-function abortedMessage(aborted: { message: string } | undefined): string {
-  return aborted?.message || "The tutor backend did not complete the request.";
 }
 
 function parseLesson(value: string): LessonPlan | undefined {
@@ -154,67 +140,36 @@ export default function App() {
   if (pathname === "/") return <LandingPage />;
   if (pathname === "/pricing") return <PricingPage />;
   if (pathname === "/app" || pathname === "/dashboard") {
-    return <AuthenticatedProduct pathname={pathname} />;
+    return <SessionProduct pathname={pathname} />;
   }
   return <NotFoundPage />;
 }
 
-function AuthenticatedProduct({ pathname }: { pathname: "/app" | "/dashboard" }) {
-  const sessionId = useMemo(browserSessionId, []);
-  const session = useTutorSession({ id: sessionId });
-  const signIn = useSignIn();
-  const [ready, setReady] = useState(false);
-  const [authRequired, setAuthRequired] = useState(false);
-  const [bootError, setBootError] = useState("");
-
-  useEffect(() => {
-    let mounted = true;
-    void session.mutators
-      .ensure(undefined, { idempotencyKey: crypto.randomUUID() })
-      .then(({ aborted }) => {
-        if (!mounted) return;
-        if (!aborted) {
-          setReady(true);
-          return;
-        }
-        if (["PermissionDenied", "Unauthenticated"].includes(aborted.error.type)) {
-          setAuthRequired(true);
-          return;
-        }
-        setBootError(aborted.message || "The tutor could not start. Please refresh and try again.");
-      })
-      .catch((startError) => {
-        if (mounted) setBootError(`The tutor could not start. ${String(startError)}`);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [session, sessionId]);
-
-  if (!ready) {
-    if (authRequired) return <SignInPage onSignIn={() => signIn()} />;
-    if (bootError) return <SignInPage onSignIn={() => undefined} error={bootError} />;
-    return <SignInPage onSignIn={() => undefined} loading />;
+function SessionProduct({ pathname }: { pathname: "/app" | "/dashboard" }) {
+  const session = useTutorSession();
+  if (session.loading) return <SignInPage onSignIn={() => undefined} loading />;
+  if (!session.snapshot) {
+    const bootError = session.error || "The tutor could not start. Please refresh and try again.";
+    return <SignInPage onSignIn={() => void session.refresh()} error={bootError} />;
   }
 
   if (pathname === "/dashboard") {
-    return (
-      <DashboardExperience sessionId={sessionId} />
-    );
+    return <DashboardExperience session={session} />;
   }
-  return <TutorExperience sessionId={sessionId} />;
+  return <TutorExperience session={session} />;
 }
 
-function DashboardExperience({ sessionId }: { sessionId: string }) {
-  const session = useTutorSession({ id: sessionId });
-  const { response: snapshot } = session.useSnapshot();
+type TutorSessionApi = ReturnType<typeof useTutorSession>;
+
+function DashboardExperience({ session }: { session: TutorSessionApi }) {
+  const snapshot = session.snapshot;
 
   async function forget(): Promise<number> {
-    const { response, aborted } = await session.mutators.forget(undefined, {
-      idempotencyKey: crypto.randomUUID(),
-    });
-    if (aborted || !response) throw new Error(abortedMessage(aborted));
-    return response.messagesErased;
+    return session.forget();
+  }
+
+  if (!snapshot) {
+    return <SignInPage onSignIn={() => undefined} loading />;
   }
 
   return (
@@ -227,12 +182,8 @@ function DashboardExperience({ sessionId }: { sessionId: string }) {
   );
 }
 
-function TutorExperience({ sessionId }: { sessionId: string }) {
-  const session = useTutorSession({ id: sessionId });
-  const { response: snapshot } = session.useSnapshot();
-  const { response: conversation } = session.useMessages({ cursor: "", limit: 80 });
-  const snapshotRef = useRef(snapshot);
-  snapshotRef.current = snapshot;
+function TutorExperience({ session }: { session: TutorSessionApi }) {
+  const snapshot = session.snapshot;
 
   const [draft, setDraft] = useState("");
   const [questionText, setQuestionText] = useState("");
@@ -265,7 +216,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
   const speechConnected = useRef(false);
   const conversationEnd = useRef<HTMLDivElement>(null);
 
-  const messages = conversation?.messages ?? [];
+  const messages = session.messages;
 
   useEffect(() => {
     if (suppressSnapshotRestore.current || !snapshot?.lessonJson || lesson) return;
@@ -296,59 +247,18 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     conversationEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, caption, state]);
 
-  async function waitForLesson(generationToWaitFor: number, requestId: number) {
-    let elapsedSeconds = 0;
-    while (lessonRequest.current === requestId) {
-      const current = snapshotRef.current;
-      if (
-        current?.generation === generationToWaitFor &&
-        (current.status === "ready" || current.status === "error")
-      ) {
-        return current;
-      }
-      if (current && current.generation > generationToWaitFor) return undefined;
-      if (elapsedSeconds === 15) setCaption("I’ve solved it. Now I’m checking the answer before I teach it…");
-      if (elapsedSeconds === 45) setCaption("I’m building the board so the explanation is visual and precise…");
-      if (elapsedSeconds === 90) setCaption("This one is taking longer, but I’m still working—your lesson will start when it’s verified.");
-      await sleep(1_000);
-      elapsedSeconds += 1;
-    }
-    return undefined;
-  }
-
   async function temporaryVoiceToken() {
-    const started = await session.mutators.requestVoiceToken(undefined, {
-      idempotencyKey: crypto.randomUUID(),
-    });
-    if (started.aborted || !started.response) {
-      return { ok: false as const, message: abortedMessage(started.aborted) };
+    try {
+      const token = await session.voiceToken();
+      return token.ok
+        ? { ok: true as const, accessToken: token.accessToken, ttsModel: token.ttsModel }
+        : { ok: false as const, message: token.message || "Voice token request failed." };
+    } catch (tokenError) {
+      return {
+        ok: false as const,
+        message: tokenError instanceof Error ? tokenError.message : String(tokenError),
+      };
     }
-    const voiceGeneration = started.response.generation;
-    for (let attempt = 0; attempt < 160; attempt += 1) {
-      const current = snapshotRef.current;
-      if (current?.voiceGeneration === voiceGeneration && current.voiceStatus === "error") {
-        return { ok: false as const, message: current.voiceError || "Voice token request failed." };
-      }
-      if (current?.voiceGeneration === voiceGeneration && current.voiceStatus === "ready") {
-        const consumed = await session.mutators.consumeVoiceToken(
-          { generation: voiceGeneration },
-          { idempotencyKey: crypto.randomUUID() },
-        );
-        if (consumed.aborted || !consumed.response?.ok) {
-          return {
-            ok: false as const,
-            message: consumed.response?.message || abortedMessage(consumed.aborted),
-          };
-        }
-        return {
-          ok: true as const,
-          accessToken: consumed.response.accessToken,
-          ttsModel: consumed.response.ttsModel,
-        };
-      }
-      await sleep(100);
-    }
-    return { ok: false as const, message: "The temporary Deepgram token timed out." };
   }
 
   async function ensureSpeech(): Promise<DeepgramSpeech | undefined> {
@@ -442,36 +352,33 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     await speech.current.prewarm().catch(() => undefined);
     if (lessonRequest.current !== requestId) return;
 
-    const { response, aborted } = await session.mutators.startLesson(
-      {
+    try {
+      const completed = await session.startLesson({
         questionText: message.trim(),
         sourceKind: selectedImage ? "image" : "text",
         sourceMediaType: selectedImage?.mediaType || "",
         sourceBase64: selectedImage?.base64 || "",
-      },
-      { idempotencyKey: crypto.randomUUID() },
-    );
-    if (aborted || !response) {
+      });
+      if (lessonRequest.current !== requestId) return;
+      const result = completed.snapshot;
+      if (result.status === "error") {
+        setState("error");
+        setError(result.errorMessage || "The tutor could not prepare this lesson.");
+        return;
+      }
+      const parsed = parseLesson(result.lessonJson);
+      if (!parsed) {
+        setState("error");
+        setError("The model returned a lesson the teaching canvas could not validate.");
+        return;
+      }
+      setQuestionText(result.questionText || message.trim());
+      await playLesson(parsed, 0, true);
+    } catch (requestError) {
       if (lessonRequest.current !== requestId) return;
       setState("error");
-      setError(abortedMessage(aborted));
-      return;
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
     }
-    if (lessonRequest.current !== requestId) return;
-    const completed = await waitForLesson(response.generation, requestId);
-    if (!completed || lessonRequest.current !== requestId) return;
-    if (completed.status === "error") {
-      setState("error");
-      setError(completed.errorMessage || "The tutor could not prepare this lesson.");
-      return;
-    }
-    const parsed = parseLesson(completed.lessonJson);
-    if (!parsed) {
-      setState("error");
-      setError("The model returned a lesson the teaching canvas could not validate.");
-      return;
-    }
-    await playLesson(parsed, 0, true);
   }
 
   async function askFollowup(message: string): Promise<void> {
@@ -481,38 +388,33 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     interruptTeaching("thinking");
     setCaption("I’m rethinking that part and preparing a different explanation…");
     setError("");
-    const { response, aborted } = await session.mutators.startReplan(
-      {
+    try {
+      const completed = await session.replan({
         studentMessage: message.trim(),
         completedBeatIndex: Math.max(0, activeBeat),
         sourceMediaType: selectedImage?.mediaType || "",
         sourceBase64: selectedImage?.base64 || "",
-      },
-      { idempotencyKey: crypto.randomUUID() },
-    );
-    if (aborted || !response) {
+      });
+      if (lessonRequest.current !== requestId) return;
+      const result = completed.snapshot;
+      if (result.status === "error") {
+        setState("error");
+        setError(result.errorMessage || "The tutor could not revise this explanation.");
+        return;
+      }
+      const parsed = parseLesson(result.lessonJson);
+      if (!parsed) {
+        setState("error");
+        setError("The revised explanation could not be validated.");
+        return;
+      }
+      // A follow-up owns a fresh activity card and board scene.
+      await playLesson(parsed, 0, true);
+    } catch (requestError) {
       if (lessonRequest.current !== requestId) return;
       setState("error");
-      setError(abortedMessage(aborted));
-      return;
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
     }
-    if (lessonRequest.current !== requestId) return;
-    const completed = await waitForLesson(response.generation, requestId);
-    if (!completed || lessonRequest.current !== requestId) return;
-    if (completed.status === "error") {
-      setState("error");
-      setError(completed.errorMessage || "The tutor could not revise this explanation.");
-      return;
-    }
-    const parsed = parseLesson(completed.lessonJson);
-    if (!parsed) {
-      setState("error");
-      setError("The revised explanation could not be validated.");
-      return;
-    }
-    // A follow-up is rendered as its own inline activity card. Start its board
-    // clean; the previous assistant message keeps its completed scene above.
-    await playLesson(parsed, 0, true);
   }
 
   async function checkWork(work: string, questionText: string): Promise<void> {
@@ -523,31 +425,30 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     setError("");
     setVoiceNote("");
     setCaption("I’m reading your steps and checking them against my own working…");
-    const { response, aborted } = await session.mutators.checkWork(
-      { studentWork: work.trim(), questionText: questionText.trim() },
-      { idempotencyKey: crypto.randomUUID() },
-    );
-    if (aborted || !response) {
+    try {
+      const completed = await session.checkWork({
+        studentWork: work.trim(),
+        questionText: questionText.trim(),
+      });
+      if (lessonRequest.current !== requestId) return;
+      const result = completed.snapshot;
+      if (result.status === "error") {
+        setState("error");
+        setError(result.errorMessage || "The tutor could not check this working.");
+        return;
+      }
+      const parsed = parseLesson(result.lessonJson);
+      if (!parsed) {
+        setState("error");
+        setError("The feedback could not be validated.");
+        return;
+      }
+      await playLesson(parsed, 0, true);
+    } catch (requestError) {
       if (lessonRequest.current !== requestId) return;
       setState("error");
-      setError(abortedMessage(aborted));
-      return;
+      setError(requestError instanceof Error ? requestError.message : String(requestError));
     }
-    if (lessonRequest.current !== requestId) return;
-    const completed = await waitForLesson(response.generation, requestId);
-    if (!completed || lessonRequest.current !== requestId) return;
-    if (completed.status === "error") {
-      setState("error");
-      setError(completed.errorMessage || "The tutor could not check this working.");
-      return;
-    }
-    const parsed = parseLesson(completed.lessonJson);
-    if (!parsed) {
-      setState("error");
-      setError("The feedback could not be validated.");
-      return;
-    }
-    await playLesson(parsed, 0, true);
   }
 
   async function submit(event: FormEvent): Promise<void> {
@@ -652,7 +553,7 @@ function TutorExperience({ sessionId }: { sessionId: string }) {
     setSelectedImage(undefined);
     setActiveBeat(-1);
     setResumeAt(undefined);
-    await session.mutators.reset(undefined, { idempotencyKey: crypto.randomUUID() });
+    await session.reset();
   }
 
   const composerPlaceholder = checking

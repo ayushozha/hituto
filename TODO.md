@@ -3,16 +3,16 @@
 ## Product MVP — complete
 
 - [x] Public landing page with an in-product voice-and-board demonstration.
-- [x] Authenticated dashboard backed by the current durable lesson snapshot.
+- [x] Browser-local dashboard backed by the current SQLite lesson snapshot.
 - [x] Dedicated classroom with one text composer and no tool picker.
 - [x] Honest private-beta pricing surface without a fake checkout.
 - [x] Responsive desktop and mobile product shell.
 - [x] Fireworks DeepSeek V4 Flash structured planner.
 - [x] Fireworks Qwen3.7 Plus image planner/reviewer with structured-output repair.
 - [x] Independent reviewer and one correction cycle.
-- [x] Durable Reboot lesson/replan workflows and generation guards.
-- [x] No false browser timeout for late durable results.
-- [x] Authenticated browser calls plus app-internal scheduled workflow authorization.
+- [x] FastAPI lesson/replan endpoints with SQLite persistence and generation guards.
+- [x] Bounded provider deadlines with clear terminal errors.
+- [x] Anonymous HttpOnly browser sessions for the private beta.
 - [x] Natural Deepgram TTS, Flux STT, captions, pause, replay, and interruption.
 - [x] KaTeX notes and bounded geometry commands.
 - [x] Function curves with real numeric point markers.
@@ -45,22 +45,17 @@
       unverified verdict and asks instead of guessing when the working is unclear.
 - [x] An Excalidraw whiteboard for the student's steps, with two named composer modes.
 - [x] Evaluation suites in `backend/eval/`, with an accuracy gate and a JSON artifact.
-- [x] Bind every session to the account that created it; a second identity is denied.
+- [x] Remove the heavyweight actor runtime and generated RPC bindings in favor of FastAPI REST.
 
 ## Required before charging users
 
-- [ ] Choose the production OAuth provider and supply its credentials. The wiring is done:
-      set `OAUTH_PROVIDER` to google, github, auth0, or ory with `OAUTH_CLIENT_ID` /
-      `OAUTH_CLIENT_SECRET` (and `OAUTH_DOMAIN` for auth0/ory), then register
-      `<APP_ORIGIN>/__/oauth/callback` with that provider. Until then sign-in stays on the
-      development account picker and ownership is only enforced there.
-- [x] Store the authenticated owner on every session and enforce ownership. Sessions created
-      before this carry no owner and stay claimable — expunge dev state before relying on it.
-- [x] Add account-level daily usage quotas and a per-minute burst limit, enforced on the
+- [ ] Choose and implement production authentication, then bind each SQLite session to the
+      verified account. The current random browser cookie is not an identity boundary.
+- [x] Add browser-session daily usage quotas and a per-minute burst limit, enforced on the
       three paths that spend provider calls. Tune with DAILY_LESSON_LIMIT,
       DAILY_CHECK_LIMIT, and BURST_LIMIT.
-- [ ] Add automated abuse protection beyond per-account limits (a single actor with many
-      accounts is still uncapped).
+- [ ] Add automated abuse protection beyond browser-session limits; clearing cookies can
+      currently reset an allowance.
 - [ ] Resolve two high-severity transitive advisories introduced with Excalidraw:
       `lodash-es` (code injection via `_.template`, reached through the mermaid parser) and
       `nanoid` (predictable ids / non-terminating generation). `npm audit fix` does nothing;
@@ -74,12 +69,9 @@
       durations and outcomes with student content withheld.
 - [ ] Ship those events somewhere that computes percentiles and alerts. They are only
       written to stdout today.
-- [x] Stop swallowing transient provider failures. Reboot already replays a workflow step
-      that raises, reusing memoized results for completed steps; a blanket `except`
-      defeated it and turned a passing 503 into a dead lesson.
-- [x] Bound the retry. A provider outage now gives up after PROVIDER_DEADLINE_MINUTES
-      (default 5) and says so, instead of leaving the student watching "thinking". The start
-      time is captured inside `at_least_once` so replays share one clock.
+- [x] Classify transient provider failures so request-level retries can be bounded safely.
+- [x] Bound provider work with `PROVIDER_DEADLINE_MINUTES` (default 5) and store a terminal
+      student-facing error instead of leaving the lesson in `thinking`.
 - [x] Create a representative SAT Math and Reading & Writing evaluation set.
 - [ ] Set and meet an accuracy threshold before marketing answer reliability. The gate exists
       (`run_eval.py --min-accuracy`); the number has not been chosen.
@@ -90,10 +82,8 @@
 - [ ] Measure first-audio and barge-in latency. Lesson preparation is now timed
       server-side (`lesson.prepared`, `work.diagnosed`); both of the others are
       client-side and still unmeasured.
-- [x] Account deletion: `TutorSession.forget` overwrites the question, working, lessons,
-      and every chat message, then crypto-shreds the session's ciphertext scope so any
-      encrypted remnant is permanently undecryptable. Erases in pages of 100; the
-      response reports whether more remain.
+- [x] Browser-session deletion removes the snapshot, usage counters, and every chat message
+      from SQLite. Temporary Deepgram tokens are never stored.
 - [x] Expose deletion in the product: a "Your data" panel on the dashboard with a
       two-step confirmation, reporting how much was erased.
 - [ ] Add a privacy policy, terms, and a stated retention period. These are legal

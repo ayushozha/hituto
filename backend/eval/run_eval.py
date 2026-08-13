@@ -25,17 +25,13 @@ from typing import Any, Callable, Optional, TypeVar
 
 import httpx
 import pydantic
+from dotenv import load_dotenv
 
 T = TypeVar("T")
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-# `backend/api` holds the generated Reboot bindings that tutor_servicer imports;
-# run `uv run rbt generate` first if it is missing.
-sys.path[:0] = [
-    str(ROOT / "backend" / "src"),
-    str(ROOT / "api"),
-    str(ROOT / "backend" / "api"),
-]
+load_dotenv(ROOT / ".env")
+sys.path.insert(0, str(ROOT / "backend" / "src"))
 
 from lesson_models import (  # noqa: E402
     LessonDraft,
@@ -45,7 +41,7 @@ from lesson_models import (  # noqa: E402
     WorkDiagnosis,
 )
 import tutor_agents  # noqa: E402
-from tutor_servicer import (  # noqa: E402
+from lesson_engine import (  # noqa: E402
     _diagnosis_to_lesson,
     _might_be_a_topic,
     _normalize_lesson,
@@ -55,19 +51,16 @@ CASES = pathlib.Path(__file__).resolve().parent / "cases"
 
 
 def load_env() -> dict[str, str]:
-    """Read .env the way `rbt dev run --env-file` does, stripping each value.
+    """Read the process environment after loading `.env`, stripping each value.
 
     An unstripped trailing space in a key produces an illegal Authorization
     header, which surfaces as a connection error rather than an auth error.
     """
-    env = dict(os.environ)
-    dotenv = ROOT / ".env"
-    if dotenv.exists():
-        for line in dotenv.read_text().splitlines():
-            match = re.fullmatch(r"\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*", line)
-            if match and not line.lstrip().startswith("#"):
-                env.setdefault(match.group(1), match.group(2))
-    return {key: value.strip() for key, value in env.items() if isinstance(value, str)}
+    return {
+        key: value.strip()
+        for key, value in os.environ.items()
+        if isinstance(value, str)
+    }
 
 
 ENV = load_env()

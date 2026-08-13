@@ -17,10 +17,8 @@ uv run python backend/eval/run_eval.py --min-accuracy 0.9     # exit 1 below thr
 uv run python backend/eval/run_eval.py --json /tmp/eval.json  # raw results
 ```
 
-Needs `LLM_API_KEY` and `OPENAI_MODEL` (read from `.env`, same as
-`rbt dev run --env-file`), and the generated bindings in `backend/api/` — run
-`uv run rbt generate` if they are missing. Exit codes: `0` pass, `1` below
-`--min-accuracy`, `2` no credentials.
+Needs `LLM_API_KEY` and `OPENAI_MODEL`, read from the repository `.env`.
+Exit codes: `0` pass, `1` below `--min-accuracy`, `2` no credentials.
 
 This calls a real provider and costs tokens, so it is deliberately **not** part
 of `pytest`. A full run is roughly 30 model calls.

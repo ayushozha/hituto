@@ -179,10 +179,9 @@ def test_lesson_plan_requires_multiple_beats() -> None:
 def test_a_provider_having_a_bad_minute_is_retryable() -> None:
     from pydantic_ai.exceptions import ModelAPIError, ModelHTTPError
 
-    from tutor_servicer import _is_transient
+    from tutor_service import _is_transient
 
-    # Reboot retries a workflow step that raises, so these must not be
-    # swallowed into a permanent student-facing error.
+    # These failures are safe candidates for an explicit request retry.
     assert _is_transient(ModelHTTPError(status_code=503, model_name="m"))
     assert _is_transient(ModelHTTPError(status_code=429, model_name="m"))
     assert _is_transient(httpx.ConnectError("refused"))
@@ -193,7 +192,7 @@ def test_a_provider_having_a_bad_minute_is_retryable() -> None:
 def test_a_bad_request_is_not_retried_forever() -> None:
     from pydantic_ai.exceptions import ModelHTTPError, UserError
 
-    from tutor_servicer import _is_transient
+    from tutor_service import _is_transient
 
     # Retrying these just burns the student's time and the account's quota.
     assert not _is_transient(ModelHTTPError(status_code=400, model_name="m"))
@@ -203,7 +202,7 @@ def test_a_bad_request_is_not_retried_forever() -> None:
 
 
 def test_the_same_answer_written_differently_is_the_same_answer() -> None:
-    from tutor_servicer import _same_answer
+    from lesson_engine import _same_answer
 
     # A follow-up that kept the answer must not be thrown away over typography.
     assert _same_answer("A) (2, -1)", "A) (2, −1)")      # Unicode minus
@@ -213,7 +212,7 @@ def test_the_same_answer_written_differently_is_the_same_answer() -> None:
 
 
 def test_a_genuinely_different_answer_is_still_caught() -> None:
-    from tutor_servicer import _same_answer
+    from lesson_engine import _same_answer
 
     # The guard exists so a follow-up cannot quietly teach a new answer.
     assert not _same_answer("A) (2, -1)", "B) (-2, -1)")

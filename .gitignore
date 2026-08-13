@@ -1,7 +1,8 @@
-# Reboot state and generated code.
+# Legacy local state preserved during the backend migration.
 .rbt/
-backend/api/
-web/src/api/
+
+# FastAPI local data.
+backend/data/
 
 # Secrets.
 .env
